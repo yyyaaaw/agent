@@ -1,0 +1,29 @@
+{
+  "liked_keywords": [
+    "agent",
+    "workflow",
+    "智能体",
+    "工作流",
+    "自动化",
+    "办公"
+  ],
+  "disliked_keywords": [
+    "融资",
+    "估值",
+    "纯论文"
+  ],
+  "liked_sources": [
+    "OpenAI Blog",
+    "Microsoft AI Blog",
+    "TechCrunch AI"
+  ],
+  "disliked_sources": [],
+  "liked_categories": [
+    "应用与产品",
+    "企业应用",
+    "产品与模型"
+  ],
+  "disliked_categories": [
+    "研究论文"
+  ]
+}
