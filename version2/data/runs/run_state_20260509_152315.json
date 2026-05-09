@@ -1,0 +1,41 @@
+{
+  "run_id": "20260509_152315",
+  "started_at": "2026-05-09 15:23:15",
+  "raw_item_count": 36,
+  "unique_item_count": 36,
+  "selected_item_count": 30,
+  "duplicate_count": 0,
+  "decisions": [
+    "读取用户偏好：C:\\Users\\18352\\Desktop\\agent\\version2\\profile.json",
+    "去重完成：36 条原始资讯 -> 36 条唯一资讯，重复 0 条",
+    "评分筛选完成：选出 30 条进入 DeepSeek 分析，最低分阈值 2，最多 40 条",
+    "入选：7 分｜From Hot Wheels to handling content: How brands are using Microsoft AI to be more productive and imaginative｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：7 分｜Microsoft open sources its ‘farm of the future’ toolkit｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：7 分｜As AI Grows More Complex, Model Builders Rely on NVIDIA｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：7 分｜Applications Now Open for $60,000 NVIDIA Graduate Fellowship Awards｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：7 分｜The “people’s airline” and the enterprise AI gold rush｜来源类别符合偏好：应用与商业; 包含应用/产品信号",
+    "入选：7 分｜Pseudoscientific emotion AI is invading the workplace, an Atlantic report shows｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：7 分｜AI money keeps flowing as Deepseek plans record raise and Core Automation quadruples valuation in weeks｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：6 分｜Running Codex safely at OpenAI｜来源类别符合偏好：产品与模型; 包含应用/产品信号",
+    "入选：6 分｜Parloa builds service agents customers want to talk to｜来源类别符合偏好：产品与模型; 包含应用/产品信号",
+    "入选：6 分｜A conversation with Kevin Scott: What’s next in AI｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：6 分｜How data and AI will transform contact centres for financial services｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：6 分｜AI-equipped drones study dolphins on the edge of extinction｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：6 分｜Online math tutoring service uses AI to help boost students’ skills and confidence｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：6 分｜SoftBank reportedly slashes OpenAI-backed loan from $10 billion to $6 billion as lenders balk at private AI valuations｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：6 分｜Anthropic approaches $1 trillion valuation as revenue grows fivefold｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：6 分｜AI safety tests have a new problem: Models are now faking their own reasoning traces｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：6 分｜OpenAI opens GPT-5.5-Cyber to vetted security researchers｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：5 分｜Introducing Trusted Contact in ChatGPT｜来源类别符合偏好：产品与模型; 包含应用/产品信号",
+    "入选：5 分｜NVIDIA Rubin Platform, Open Models, Autonomous Driving: NVIDIA Presents Blueprint for the Future at CES｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：5 分｜Reaching Across the Isles: UK-LLM Brings AI to UK Languages With NVIDIA Nemotron｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "质量检查结论为 PASS，无需修订。"
+  ],
+  "errors": [
+    "Google DeepMind Blog: HTTP Error 404: Not Found",
+    "VentureBeat AI: HTTP Error 308: Permanent Redirect"
+  ],
+  "report_path": "C:\\Users\\18352\\Desktop\\agent\\version2\\reports\\ai_hotspots_2026-05-09.md",
+  "raw_data_path": "C:\\Users\\18352\\Desktop\\agent\\version2\\data\\raw\\ai_news_raw_2026-05-09.json",
+  "critic_result": "结论：PASS  \n主要问题：无  \n修改建议：  \n- 分类整理中“GPT-5.2 发布”等描述过于笼统，建议补充一句对普通用户/职场的影响（如“对知识工作者意味着更强的写作、分析助手”），以保持整份日报影响力一致性。  \n- 可考虑为每条热点添加一个“行动示例”，比如“尝试用语音API制作一个会议纪要Demo”，让建议更具可操作性。"
+}
