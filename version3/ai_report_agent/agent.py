@@ -21,6 +21,18 @@ from ai_report_agent.config import Settings
 # critique_report / revise_report / should_revise 负责报告自查和必要时修订。
 from ai_report_agent.critic import critique_report, revise_report, should_revise
 
+# database 模块负责 Version 3 的 SQLite 长期记忆。
+from ai_report_agent.database import (
+    initialize_database,
+    mark_unique_news_items,
+    retrieve_related_history,
+    save_raw_news_items,
+    save_report_record,
+    save_scored_news_items,
+    save_source_errors,
+    upsert_run_state,
+)
+
 # deduplicate_items 负责在分析前去掉重复资讯。
 from ai_report_agent.deduplicator import deduplicate_items
 
@@ -44,7 +56,10 @@ from ai_report_agent.state import create_run_state, save_run_state
 
 
 def run_daily_report(settings: Settings) -> Path:
-    """运行一次 Version 2 日报 agent，并返回报告路径。"""
+    """运行一次 Version 3 日报 agent，并返回报告路径。"""
+    # 初始化 SQLite 数据库；如果表已经存在，这一步不会破坏已有数据。
+    initialize_database(settings.database_path)
+
     # 创建本次运行状态对象，用来记录采集数量、筛选数量、错误和决策。
     state = create_run_state()
 
@@ -53,6 +68,9 @@ def run_daily_report(settings: Settings) -> Path:
 
     # 把“读取偏好”这一步写入运行轨迹，方便之后复盘。
     state.decisions.append(f"读取用户偏好：{settings.profile_path}")
+
+    # 把刚创建的运行状态先写入数据库，后续阶段会持续更新。
+    upsert_run_state(settings.database_path, state)
 
     # 提示用户程序已经进入采集阶段。
     print("开始收集 AI 热点...")
@@ -73,8 +91,14 @@ def run_daily_report(settings: Settings) -> Path:
     # 把采集阶段的非致命错误保存进状态对象。
     state.errors.extend(errors)
 
+    # 保存采集错误到数据库，后续可统计来源稳定性。
+    save_source_errors(settings.database_path, state.run_id, errors)
+
     # 如果所有来源都失败或没有任何条目，就终止本次运行。
     if not items:
+        # 失败前也同步状态到数据库，避免失败运行完全没有记录。
+        upsert_run_state(settings.database_path, state)
+
         # 有错误时展示错误详情；没有错误时展示空采集说明。
         details = "\n".join(errors) if errors else "没有采集到任何条目"
 
@@ -84,11 +108,17 @@ def run_daily_report(settings: Settings) -> Path:
     # 保存原始采集结果，便于之后人工检查或复盘。
     raw_data_path = save_raw_items(items, settings.raw_data_dir)
 
+    # 同时把原始资讯写入 SQLite，作为长期记忆的一部分。
+    save_raw_news_items(settings.database_path, state.run_id, items)
+
     # 把原始数据路径写入运行状态。
     state.raw_data_path = str(raw_data_path)
 
     # 打印采集结果，方便命令行用户了解进度。
     print(f"已采集 {len(items)} 条资讯，原始数据保存至：{raw_data_path}")
+
+    # 更新数据库中的运行状态。
+    upsert_run_state(settings.database_path, state)
 
     # 对原始资讯做去重，减少重复热点进入后续分析。
     dedup_result = deduplicate_items(items)
@@ -104,6 +134,9 @@ def run_daily_report(settings: Settings) -> Path:
         f"去重完成：{len(items)} 条原始资讯 -> {len(dedup_result.unique_items)} 条唯一资讯，"
         f"重复 {dedup_result.duplicate_count} 条"
     )
+
+    # 把哪些资讯是唯一资讯写回数据库。
+    mark_unique_news_items(settings.database_path, state.run_id, dedup_result)
 
     # 根据用户偏好和应用相关关键词给资讯打分。
     scored_items = score_items(dedup_result.unique_items, profile)
@@ -133,6 +166,17 @@ def run_daily_report(settings: Settings) -> Path:
         for entry in selected_scored_items[:20]
     )
 
+    # 保存每条唯一资讯的分数、理由和是否入选 DeepSeek。
+    save_scored_news_items(
+        settings.database_path,
+        state.run_id,
+        scored_items,
+        selected_scored_items,
+    )
+
+    # 更新数据库中的运行状态。
+    upsert_run_state(settings.database_path, state)
+
     # 打印筛选阶段摘要，给用户一个进度反馈。
     print(
         f"去重后 {len(dedup_result.unique_items)} 条；"
@@ -142,8 +186,19 @@ def run_daily_report(settings: Settings) -> Path:
     # 提示用户即将开始调用模型。
     print("开始调用 DeepSeek 分析...")
 
+    # 从历史数据库中检索相关旧资讯，作为轻量 RAG 上下文。
+    history_context = retrieve_related_history(
+        settings.database_path,
+        current_run_id=state.run_id,
+        selected_items=selected_items,
+    )
+
+    # 如果检索到了历史上下文，就记录到决策轨迹。
+    if history_context:
+        state.decisions.append("已从 SQLite 数据库检索到相关历史资讯，用于最终汇总 prompt。")
+
     # 调用 DeepSeek，得到中文日报正文。
-    analysis = analyze_news(settings, selected_items, profile)
+    analysis = analyze_news(settings, selected_items, profile, history_context)
 
     # 把模型输出、参考来源、采集错误整理成完整 Markdown。
     markdown = build_report_markdown(
@@ -184,6 +239,18 @@ def run_daily_report(settings: Settings) -> Path:
 
     # 保存运行状态 JSON。
     state_path = save_run_state(state, settings.run_log_dir)
+
+    # 把最终报告正文和自查结果保存到 SQLite。
+    save_report_record(
+        settings.database_path,
+        state.run_id,
+        report_path,
+        markdown,
+        state.critic_result,
+    )
+
+    # 最后再同步一次完整状态到 SQLite。
+    upsert_run_state(settings.database_path, state)
 
     # 打印最终报告路径。
     print(f"日报生成完成：{report_path}")

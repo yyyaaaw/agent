@@ -144,21 +144,32 @@ def build_batch_prompt(
 """
 
 
-def build_final_prompt(batch_summaries: list[str], profile: UserProfile | None) -> str:
+def build_final_prompt(
+    batch_summaries: list[str],
+    profile: UserProfile | None,
+    history_context: str = "",
+) -> str:
     """构造最终日报 prompt。
 
     第二阶段会把每批候选热点交给 DeepSeek，让它综合成最终日报。
+    history_context 是从数据库检索出的历史背景，用于第一阶段 RAG 增强。
     """
     # 这里用 enumerate 给每个批次摘要加编号。
     summaries = "\n\n".join(
         f"## 批次 {index}\n{summary}" for index, summary in enumerate(batch_summaries, start=1)
     )
 
+    # 如果有历史上下文，就把它加入 prompt；否则提示模型只看本次材料。
+    history_block = history_context or "暂无相关历史记录；请主要基于本次候选热点判断。"
+
     # 返回最终汇总 prompt。
     return f"""你是一个专业的 AI 应用趋势研究助理。请基于下面各批次候选热点，生成一份中文 AI 应用热点日报。
 
 用户偏好：
 {format_profile(profile)}
+
+历史检索上下文：
+{history_block}
 
 要求：
 1. 优先关注“普通用户、职场、企业、创作者、开发者可以直接感知或使用的 AI 应用新变化”。
@@ -318,12 +329,18 @@ def call_deepseek(settings: Settings, prompt: str, debug_name: str) -> str:
     return text
 
 
-def analyze_news(settings: Settings, items: list[NewsItem], profile: UserProfile | None = None) -> str:
+def analyze_news(
+    settings: Settings,
+    items: list[NewsItem],
+    profile: UserProfile | None = None,
+    history_context: str = "",
+) -> str:
     """对新闻条目进行 AI 分析，生成日报正文。
 
     这里采用“两阶段分析”：
     1. 先把所有资讯分批，让 DeepSeek 每批提炼候选热点。
     2. 再把所有批次候选热点交给 DeepSeek，生成最终日报。
+    3. Version 3 会把数据库检索到的历史上下文加入最终汇总 prompt。
     """
     # 按 settings.batch_size 分批。
     batches = chunk_items(items, settings.batch_size)
@@ -350,7 +367,7 @@ def analyze_news(settings: Settings, items: list[NewsItem], profile: UserProfile
     print("DeepSeek 正在综合所有批次，生成最终日报...")
 
     # 构造最终汇总 prompt。
-    final_prompt = build_final_prompt(batch_summaries, profile)
+    final_prompt = build_final_prompt(batch_summaries, profile, history_context)
 
     # 返回最终日报正文。
     return call_deepseek(settings, final_prompt, "final_report_prompt")

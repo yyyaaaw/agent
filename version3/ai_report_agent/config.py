@@ -83,6 +83,9 @@ class Settings:
     # 每次运行状态日志保存目录，例如 data/runs。
     run_log_dir: Path
 
+    # SQLite 数据库文件路径，例如 data/agent_v3.sqlite3。
+    database_path: Path
+
     # 每个 RSS 来源最多抓多少条。
     max_items_per_source: int
 
@@ -270,12 +273,16 @@ def load_settings() -> Settings:
     # 运行状态日志目录，默认是 data/runs。
     run_log_dir = ROOT_DIR / os.getenv("RUN_LOG_DIR", "data/runs")
 
+    # SQLite 数据库路径，默认放在 data 目录下。
+    database_path = ROOT_DIR / os.getenv("DATABASE_PATH", "data/agent_v3.sqlite3")
+
     # mkdir 用来创建目录。
     # parents=True 表示父目录不存在时也一起创建。
     # exist_ok=True 表示目录已存在时不要报错。
     report_dir.mkdir(parents=True, exist_ok=True)
     raw_data_dir.mkdir(parents=True, exist_ok=True)
     run_log_dir.mkdir(parents=True, exist_ok=True)
+    database_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 创建并返回 Settings 对象。
     # 这里集中定义每个配置项的默认值。
@@ -303,6 +310,9 @@ def load_settings() -> Settings:
 
         # 运行状态日志目录。
         run_log_dir=run_log_dir,
+
+        # SQLite 数据库文件路径。
+        database_path=database_path,
 
         # 每个来源最多采集的资讯条数。
         max_items_per_source=getenv_int("MAX_ITEMS_PER_SOURCE", 8),
