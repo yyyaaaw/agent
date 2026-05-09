@@ -397,6 +397,23 @@ def save_report_record(
             (run_id, report_date, str(report_path), markdown, critic_result, now),
         )
 
+'''
+RAG 是 Retrieval-Augmented Generation，中文通常叫“检索增强生成”。
+Retrieval：先检索资料
+Augmented：把资料补充给模型
+Generation：再让模型生成答案
+
+在agent-v3中，主要由
+def keyword_tokens(...)
+def retrieve_related_history(...)
+这两个函数实现了一个非常基础的 RAG 功能：在调用 DeepSeek 之前，先从数据库里检索与本次入选资讯相关的历史记录，作为轻量 RAG 的上下文输入。
+
+这就是 RAG 的核心价值：让 LLM 不只看当前输入，而是先检索历史资料，再带着资料生成回答。这样可以让模型的输出更有连续性和深度，尤其适合需要趋势分析的日报场景。
+解决的核心问题是：
+LLM 本身不知道你的私有数据库、历史日报、本地文件。所以你要先帮它把相关资料找出来，再放进 prompt。
+
+现在的知识库就是SQLite，检索器就是 retrieve_related_history()，生成器就是DeepSeek.
+'''
 
 def keyword_tokens(text: str) -> list[str]:
     """从标题中提取简单关键词，用于轻量历史检索。

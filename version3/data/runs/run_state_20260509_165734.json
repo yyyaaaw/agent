@@ -1,0 +1,41 @@
+{
+  "run_id": "20260509_165734",
+  "started_at": "2026-05-09 16:57:34",
+  "raw_item_count": 36,
+  "unique_item_count": 36,
+  "selected_item_count": 30,
+  "duplicate_count": 0,
+  "decisions": [
+    "读取用户偏好：C:\\Users\\18352\\Desktop\\agent\\version3\\profile.json",
+    "去重完成：36 条原始资讯 -> 36 条唯一资讯，重复 0 条",
+    "评分筛选完成：选出 30 条进入 DeepSeek 分析，最低分阈值 2，最多 40 条",
+    "入选：7 分｜From Hot Wheels to handling content: How brands are using Microsoft AI to be more productive and imaginative｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：7 分｜Microsoft open sources its ‘farm of the future’ toolkit｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：7 分｜As AI Grows More Complex, Model Builders Rely on NVIDIA｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：7 分｜Applications Now Open for $60,000 NVIDIA Graduate Fellowship Awards｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：7 分｜The “people’s airline” and the enterprise AI gold rush｜来源类别符合偏好：应用与商业; 包含应用/产品信号",
+    "入选：7 分｜Pseudoscientific emotion AI is invading the workplace, an Atlantic report shows｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：7 分｜AI money keeps flowing as Deepseek plans record raise and Core Automation quadruples valuation in weeks｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：6 分｜Running Codex safely at OpenAI｜来源类别符合偏好：产品与模型; 包含应用/产品信号",
+    "入选：6 分｜Parloa builds service agents customers want to talk to｜来源类别符合偏好：产品与模型; 包含应用/产品信号",
+    "入选：6 分｜A conversation with Kevin Scott: What’s next in AI｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：6 分｜How data and AI will transform contact centres for financial services｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：6 分｜AI-equipped drones study dolphins on the edge of extinction｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：6 分｜Online math tutoring service uses AI to help boost students’ skills and confidence｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：6 分｜SoftBank reportedly slashes OpenAI-backed loan from $10 billion to $6 billion as lenders balk at private AI valuations｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：6 分｜Anthropic approaches $1 trillion valuation as revenue grows fivefold｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：6 分｜AI safety tests have a new problem: Models are now faking their own reasoning traces｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：6 分｜OpenAI opens GPT-5.5-Cyber to vetted security researchers｜来源类别符合偏好：应用与产品; 包含应用/产品信号",
+    "入选：5 分｜Introducing Trusted Contact in ChatGPT｜来源类别符合偏好：产品与模型; 包含应用/产品信号",
+    "入选：5 分｜NVIDIA Rubin Platform, Open Models, Autonomous Driving: NVIDIA Presents Blueprint for the Future at CES｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "入选：5 分｜Reaching Across the Isles: UK-LLM Brings AI to UK Languages With NVIDIA Nemotron｜来源类别符合偏好：企业应用; 包含应用/产品信号",
+    "质量检查结论为 FAIL，已触发报告修订。"
+  ],
+  "errors": [
+    "Google DeepMind Blog: HTTP Error 404: Not Found",
+    "VentureBeat AI: HTTP Error 308: Permanent Redirect"
+  ],
+  "report_path": "C:\\Users\\18352\\Desktop\\agent\\version3\\reports\\ai_hotspots_2026-05-09.md",
+  "raw_data_path": "C:\\Users\\18352\\Desktop\\agent\\version3\\data\\raw\\ai_news_raw_2026-05-09.json",
+  "critic_result": "结论：FAIL\n\n主要问题：\n1. **存在无来源支撑或编造的判断**：\n   - 热点1中提到“OpenAI 推出 GPT-5.3 Codex”，但参考来源中仅提及“Running Codex safely at OpenAI”和“GPT-5.5-Cyber”，没有任何资料显示使用“GPT-5.3”这个版本号。这可能是自行编造或混淆。\n   - 热点3中“Anthropic 与 OpenAI 宣布成立合资公司”，在参考来源列表中没有找到相应链接（仅有一条“Anthropic approaches $1 trillion valuation”未涉及合资）。该重大信息缺乏可靠来源，属于无源断言。\n   - 分类热点中“医疗 AI 自动化初创公司 Basata”只出现在文字描述中，参考来源对应文章“The fax machine is the bottleneck in US healthcare”并未指名Basata，属于添加了未证实的具体公司名。\n\n2. **部分信息准确性存疑**：\n   - “SAP 10亿美元收购 Prior Labs”在参考来源中无直接对应。来源列表中有“The ‘people’s airline’ and the enterprise AI gold rush”可能提及收购，但未明确说明是SAP和Prior Labs。需要核实。\n\n3. **部分热点缺乏实际参考来源链接**（虽列在尾部但未具体对应到每条热点），导致读者无法验证关键商业动态。\n\n修改建议：\n1. 所有核心结论（尤其是具体版本号、公司名、交易金额）必须与参考来源一一对应。如无法找到来源，应删除或标注“据未证实报道”。\n2. 将“GPT-5.3 Codex”修正为“OpenAI Codex（基于最新模型）”或引用原文确切的命名。\n3. 删除“Anthropic+OpenAI合资公司”这条，除非找到可靠来源（如TechCrunch、Reuters等）。\n4. 对于“Basata”这样的具体公司，要么提供来源，要么改为泛称“某AI初创公司”。\n5. 建议在每条热点后紧跟参考来源序号或短链接，便于读者交叉验证。"
+}
