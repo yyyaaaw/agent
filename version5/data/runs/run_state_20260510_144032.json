@@ -1,0 +1,42 @@
+{
+  "run_id": "20260510_144032",
+  "started_at": "2026-05-10 14:40:32",
+  "raw_item_count": 36,
+  "unique_item_count": 36,
+  "selected_item_count": 30,
+  "duplicate_count": 0,
+  "decisions": [
+    "读取用户偏好：C:\\Users\\18352\\Desktop\\agent\\version5\\profile.json",
+    "去重完成：36 条原始资讯 -> 36 条唯一资讯，重复 0 条",
+    "评分筛选完成：选出 30 条进入 DeepSeek 分析，最低分阈值 2，最多 40 条",
+    "入选：11 分｜Running Codex safely at OpenAI｜来源类别符合偏好：产品与模型; 包含应用/产品信号; 反馈加分：喜欢类别 产品与模型; 反馈加分：喜欢来源 OpenAI Blog; 反馈加分：喜欢关键词 agent",
+    "入选：11 分｜Parloa builds service agents customers want to talk to｜来源类别符合偏好：产品与模型; 包含应用/产品信号; 反馈加分：喜欢类别 产品与模型; 反馈加分：喜欢来源 OpenAI Blog; 反馈加分：喜欢关键词 agent",
+    "入选：11 分｜From Hot Wheels to handling content: How brands are using Microsoft AI to be more productive and imaginative｜来源类别符合偏好：企业应用; 包含应用/产品信号; 反馈加分：喜欢类别 企业应用; 反馈加分：喜欢来源 Microsoft AI Blog",
+    "入选：11 分｜Microsoft open sources its ‘farm of the future’ toolkit｜来源类别符合偏好：企业应用; 包含应用/产品信号; 反馈加分：喜欢类别 企业应用; 反馈加分：喜欢来源 Microsoft AI Blog",
+    "入选：10 分｜A conversation with Kevin Scott: What’s next in AI｜来源类别符合偏好：企业应用; 包含应用/产品信号; 反馈加分：喜欢类别 企业应用; 反馈加分：喜欢来源 Microsoft AI Blog",
+    "入选：10 分｜How data and AI will transform contact centres for financial services｜来源类别符合偏好：企业应用; 包含应用/产品信号; 反馈加分：喜欢类别 企业应用; 反馈加分：喜欢来源 Microsoft AI Blog",
+    "入选：10 分｜AI-equipped drones study dolphins on the edge of extinction｜来源类别符合偏好：企业应用; 包含应用/产品信号; 反馈加分：喜欢类别 企业应用; 反馈加分：喜欢来源 Microsoft AI Blog",
+    "入选：10 分｜Online math tutoring service uses AI to help boost students’ skills and confidence｜来源类别符合偏好：企业应用; 包含应用/产品信号; 反馈加分：喜欢类别 企业应用; 反馈加分：喜欢来源 Microsoft AI Blog",
+    "入选：10 分｜As AI Grows More Complex, Model Builders Rely on NVIDIA｜来源类别符合偏好：企业应用; 包含应用/产品信号; 反馈加分：喜欢类别 企业应用; 反馈加分：喜欢关键词 agent",
+    "入选：9 分｜Introducing Trusted Contact in ChatGPT｜来源类别符合偏好：产品与模型; 包含应用/产品信号; 反馈加分：喜欢类别 产品与模型; 反馈加分：喜欢来源 OpenAI Blog",
+    "入选：9 分｜Applications Now Open for $60,000 NVIDIA Graduate Fellowship Awards｜来源类别符合偏好：企业应用; 包含应用/产品信号; 反馈加分：喜欢类别 企业应用",
+    "入选：9 分｜The “people’s airline” and the enterprise AI gold rush｜来源类别符合偏好：应用与商业; 包含应用/产品信号; 反馈加分：喜欢来源 TechCrunch AI",
+    "入选：9 分｜Broadcom reportedly won't build OpenAI's custom chip unless Microsoft buys 40 percent of them｜来源类别符合偏好：应用与产品; 包含应用/产品信号; 反馈加分：喜欢类别 应用与产品",
+    "入选：9 分｜Google's \"Preferred Sources\" feature is a free pass for more garbage in search｜来源类别符合偏好：应用与产品; 包含应用/产品信号; 反馈加分：喜欢类别 应用与产品",
+    "入选：9 分｜Pseudoscientific emotion AI is invading the workplace, an Atlantic report shows｜来源类别符合偏好：应用与产品; 包含应用/产品信号; 反馈加分：喜欢类别 应用与产品",
+    "入选：9 分｜AI money keeps flowing as Deepseek plans record raise and Core Automation quadruples valuation in weeks｜来源类别符合偏好：应用与产品; 包含应用/产品信号; 反馈加分：喜欢类别 应用与产品",
+    "入选：8 分｜Scaling Trusted Access for Cyber with GPT-5.5 and GPT-5.5-Cyber｜来源类别符合偏好：产品与模型; 包含应用/产品信号; 反馈加分：喜欢类别 产品与模型; 反馈加分：喜欢来源 OpenAI Blog",
+    "入选：8 分｜Advancing voice intelligence with new models in the API｜来源类别符合偏好：产品与模型; 包含应用/产品信号; 反馈加分：喜欢类别 产品与模型; 反馈加分：喜欢来源 OpenAI Blog",
+    "入选：8 分｜Testing ads in ChatGPT｜来源类别符合偏好：产品与模型; 包含应用/产品信号; 反馈加分：喜欢类别 产品与模型; 反馈加分：喜欢来源 OpenAI Blog",
+    "入选：8 分｜Fields Medalist says ChatGPT 5.5 Pro delivered \"PhD-level\" math research in under two hours with zero human help｜来源类别符合偏好：应用与产品; 包含应用/产品信号; 反馈加分：喜欢类别 应用与产品",
+    "已从 SQLite 数据库完成向量检索，找到相关历史资讯用于最终汇总 prompt。",
+    "质量检查结论为 PASS，无需修订。"
+  ],
+  "errors": [
+    "Google DeepMind Blog: HTTP Error 404: Not Found",
+    "VentureBeat AI: HTTP Error 308: Permanent Redirect"
+  ],
+  "report_path": "C:\\Users\\18352\\Desktop\\agent\\version5\\reports\\ai_hotspots_2026-05-10.md",
+  "raw_data_path": "C:\\Users\\18352\\Desktop\\agent\\version5\\data\\raw\\ai_news_raw_2026-05-10.json",
+  "critic_result": "结论：PASS\n\n主要问题：\n- 无重大违规，日报整体符合检查标准。\n\n修改建议：\n- 标题与生成日期不一致：正文开头写“2026年5月9日”，但生成时间为“2026-05-10”，建议统一，避免混淆。\n- 最后“采集状态”部分列出了失败来源，对读者无意义，可移除或附注“部分源站未采集到，但不影响主要热点”。"
+}
