@@ -280,7 +280,7 @@ def load_settings() -> Settings:
     run_log_dir = ROOT_DIR / os.getenv("RUN_LOG_DIR", "data/runs")
 
     # SQLite 数据库路径，默认放在 data 目录下。
-    database_path = ROOT_DIR / os.getenv("DATABASE_PATH", "data/agent_v11.sqlite3")
+    database_path = ROOT_DIR / os.getenv("DATABASE_PATH", "data/agent_v12.sqlite3")
 
     # mkdir 用来创建目录。
     # parents=True 表示父目录不存在时也一起创建。

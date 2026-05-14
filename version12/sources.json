@@ -1,0 +1,88 @@
+[
+  {
+    "name": "OpenAI Blog",
+    "url": "https://openai.com/news/rss.xml",
+    "homepage_url": "https://openai.com/news/",
+    "fallback_urls": [
+      "https://openai.com/blog/rss.xml"
+    ],
+    "category": "产品与模型",
+    "enabled": true
+  },
+  {
+    "name": "Google DeepMind Blog",
+    "url": "https://deepmind.google/discover/blog/rss.xml",
+    "homepage_url": "https://deepmind.google/discover/blog/",
+    "fallback_urls": [
+      "https://deepmind.google/discover/blog/rss/",
+      "https://deepmind.google/blog/rss.xml"
+    ],
+    "category": "产品与研究",
+    "enabled": true
+  },
+  {
+    "name": "Microsoft AI Blog",
+    "url": "https://blogs.microsoft.com/ai/feed/",
+    "homepage_url": "https://blogs.microsoft.com/ai/",
+    "fallback_urls": [
+      "https://blogs.microsoft.com/feed/"
+    ],
+    "category": "企业应用",
+    "enabled": true
+  },
+  {
+    "name": "NVIDIA AI Blog",
+    "url": "https://blogs.nvidia.com/blog/category/deep-learning/feed/",
+    "homepage_url": "https://blogs.nvidia.com/blog/category/deep-learning/",
+    "fallback_urls": [
+      "https://blogs.nvidia.com/feed/"
+    ],
+    "category": "企业应用",
+    "enabled": true
+  },
+  {
+    "name": "VentureBeat AI",
+    "url": "https://venturebeat.com/category/ai/feed/",
+    "homepage_url": "https://venturebeat.com/category/ai/",
+    "fallback_urls": [
+      "https://venturebeat.com/category/ai/feed",
+      "https://venturebeat.com/feed/"
+    ],
+    "category": "应用与商业",
+    "enabled": true
+  },
+  {
+    "name": "TechCrunch AI",
+    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "homepage_url": "https://techcrunch.com/category/artificial-intelligence/",
+    "fallback_urls": [
+      "https://techcrunch.com/feed/"
+    ],
+    "category": "应用与商业",
+    "enabled": true
+  },
+  {
+    "name": "The Decoder",
+    "url": "https://the-decoder.com/feed/",
+    "homepage_url": "https://the-decoder.com/",
+    "fallback_urls": [],
+    "category": "应用与产品",
+    "enabled": true
+  },
+  {
+    "name": "MIT Technology Review AI",
+    "url": "https://www.technologyreview.com/feed/",
+    "homepage_url": "https://www.technologyreview.com/",
+    "fallback_urls": [],
+    "category": "趋势与影响",
+    "enabled": true
+  },
+  {
+    "name": "Arxiv CS AI",
+    "url": "https://export.arxiv.org/rss/cs.AI",
+    "homepage_url": "https://arxiv.org/list/cs.AI/recent",
+    "fallback_urls": [],
+    "category": "研究论文",
+    "enabled": true
+  }
+]

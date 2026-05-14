@@ -1,0 +1,42 @@
+[
+  {
+    "run_id": "20260511_135753",
+    "score": 86,
+    "raw_items": 42,
+    "unique_items": 42,
+    "selected_items": 30,
+    "duplicate_count": 0,
+    "event_count": 30,
+    "avg_items_per_event": 1.0,
+    "source_error_count": 2,
+    "rag_hit": true,
+    "critic_passed": true,
+    "feedback_count": 0,
+    "trace_duration_ms": 0.0,
+    "findings": [
+      "No duplicates were detected in a large batch; dedup rules may be too weak.",
+      "Event compression is weak; many news items may still be one-item events."
+    ]
+  },
+  {
+    "run_id": "20260510_210756",
+    "score": 68,
+    "raw_items": 36,
+    "unique_items": 36,
+    "selected_items": 30,
+    "duplicate_count": 0,
+    "event_count": 29,
+    "avg_items_per_event": 1.03,
+    "source_error_count": 2,
+    "rag_hit": false,
+    "critic_passed": false,
+    "feedback_count": 0,
+    "trace_duration_ms": 0.0,
+    "findings": [
+      "No duplicates were detected in a large batch; dedup rules may be too weak.",
+      "Event compression is weak; many news items may still be one-item events.",
+      "No RAG hit was recorded; long-term memory did not help this run.",
+      "The critic marked the report as FAIL or found hard quality issues."
+    ]
+  }
+]
