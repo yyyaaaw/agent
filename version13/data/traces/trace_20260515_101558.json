@@ -1,0 +1,198 @@
+{
+  "run_id": "20260515_101558",
+  "started_at": "2026-05-15 10:15:58",
+  "ended_at": "2026-05-15 10:24:18",
+  "duration_ms": 500361.53,
+  "spans": [
+    {
+      "name": "initialize_database",
+      "started_at": "2026-05-15 10:15:58",
+      "ended_at": "2026-05-15 10:15:58",
+      "duration_ms": 5.99,
+      "status": "ok",
+      "metrics": {},
+      "error": ""
+    },
+    {
+      "name": "load_profile_and_feedback",
+      "started_at": "2026-05-15 10:15:58",
+      "ended_at": "2026-05-15 10:15:58",
+      "duration_ms": 1.39,
+      "status": "ok",
+      "metrics": {},
+      "error": ""
+    },
+    {
+      "name": "load_sources",
+      "started_at": "2026-05-15 10:15:58",
+      "ended_at": "2026-05-15 10:15:58",
+      "duration_ms": 0.77,
+      "status": "ok",
+      "metrics": {
+        "source_count": 9
+      },
+      "error": ""
+    },
+    {
+      "name": "collect_news",
+      "started_at": "2026-05-15 10:15:58",
+      "ended_at": "2026-05-15 10:18:26",
+      "duration_ms": 147802.62,
+      "status": "ok",
+      "metrics": {
+        "raw_items": 48,
+        "source_errors": 1
+      },
+      "error": ""
+    },
+    {
+      "name": "save_raw_items",
+      "started_at": "2026-05-15 10:18:26",
+      "ended_at": "2026-05-15 10:18:26",
+      "duration_ms": 2.17,
+      "status": "ok",
+      "metrics": {},
+      "error": ""
+    },
+    {
+      "name": "save_raw_news_items",
+      "started_at": "2026-05-15 10:18:26",
+      "ended_at": "2026-05-15 10:19:11",
+      "duration_ms": 44831.48,
+      "status": "ok",
+      "metrics": {},
+      "error": ""
+    },
+    {
+      "name": "deduplicate_items",
+      "started_at": "2026-05-15 10:19:11",
+      "ended_at": "2026-05-15 10:19:11",
+      "duration_ms": 2.81,
+      "status": "ok",
+      "metrics": {
+        "unique_items": 48,
+        "duplicate_count": 0
+      },
+      "error": ""
+    },
+    {
+      "name": "score_items",
+      "started_at": "2026-05-15 10:19:11",
+      "ended_at": "2026-05-15 10:19:11",
+      "duration_ms": 4.26,
+      "status": "ok",
+      "metrics": {
+        "scored_items": 48
+      },
+      "error": ""
+    },
+    {
+      "name": "select_items_for_analysis",
+      "started_at": "2026-05-15 10:19:11",
+      "ended_at": "2026-05-15 10:19:11",
+      "duration_ms": 0.04,
+      "status": "ok",
+      "metrics": {
+        "selected_items": 34
+      },
+      "error": ""
+    },
+    {
+      "name": "cluster_scored_items",
+      "started_at": "2026-05-15 10:19:11",
+      "ended_at": "2026-05-15 10:20:02",
+      "duration_ms": 51360.89,
+      "status": "ok",
+      "metrics": {
+        "candidate_events": 20,
+        "candidate_event_compression_ratio": 1.7
+      },
+      "error": ""
+    },
+    {
+      "name": "refine_events_with_llm",
+      "started_at": "2026-05-15 10:20:02",
+      "ended_at": "2026-05-15 10:21:01",
+      "duration_ms": 59107.34,
+      "status": "ok",
+      "metrics": {
+        "final_events": 20
+      },
+      "error": ""
+    },
+    {
+      "name": "retrieve_related_events",
+      "started_at": "2026-05-15 10:21:01",
+      "ended_at": "2026-05-15 10:21:05",
+      "duration_ms": 3643.82,
+      "status": "ok",
+      "metrics": {
+        "rag_hit": true
+      },
+      "error": ""
+    },
+    {
+      "name": "analyze_news",
+      "started_at": "2026-05-15 10:21:05",
+      "ended_at": "2026-05-15 10:23:09",
+      "duration_ms": 123717.7,
+      "status": "ok",
+      "metrics": {
+        "analysis_chars": 3963
+      },
+      "error": ""
+    },
+    {
+      "name": "build_report_markdown",
+      "started_at": "2026-05-15 10:23:09",
+      "ended_at": "2026-05-15 10:23:09",
+      "duration_ms": 0.09,
+      "status": "ok",
+      "metrics": {
+        "markdown_chars": 10851
+      },
+      "error": ""
+    },
+    {
+      "name": "critique_report",
+      "started_at": "2026-05-15 10:23:09",
+      "ended_at": "2026-05-15 10:23:43",
+      "duration_ms": 34706.29,
+      "status": "ok",
+      "metrics": {
+        "critic_failed": true
+      },
+      "error": ""
+    },
+    {
+      "name": "revise_report",
+      "started_at": "2026-05-15 10:23:43",
+      "ended_at": "2026-05-15 10:24:18",
+      "duration_ms": 35037.22,
+      "status": "ok",
+      "metrics": {
+        "revised_markdown_chars": 9873,
+        "revision_accepted": false,
+        "revision_validation_reason": "修订版二级标题过少：2 个，至少需要 3 个。"
+      },
+      "error": ""
+    },
+    {
+      "name": "save_report",
+      "started_at": "2026-05-15 10:24:18",
+      "ended_at": "2026-05-15 10:24:18",
+      "duration_ms": 0.83,
+      "status": "ok",
+      "metrics": {},
+      "error": ""
+    }
+  ],
+  "metrics": {
+    "raw_items": 48,
+    "unique_items": 48,
+    "selected_items": 34,
+    "duplicate_count": 0,
+    "final_events": 20
+  },
+  "status": "ok"
+}
