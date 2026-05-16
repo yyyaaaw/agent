@@ -60,8 +60,16 @@ from ai_report_agent.database import (
 # deduplicator 模块负责去除重复新闻，减少后续 LLM 输入噪声。
 from ai_report_agent.deduplicator import deduplicate_items
 
-# deepseek_client 模块负责调用 DeepSeek 生成日报，以及用 LLM 合并候选事件。
-from ai_report_agent.deepseek_client import analyze_news, refine_events_with_llm
+# deepseek_client 模块负责调用 DeepSeek 生成日报、合并候选事件，并记录 token usage。
+from ai_report_agent.deepseek_client import (
+    analyze_news,
+    deepseek_balance_delta,
+    fetch_deepseek_balance,
+    llm_usage_delta,
+    reset_llm_usage,
+    refine_events_with_llm,
+    summarize_llm_usage,
+)
 
 # events 模块负责把新闻聚类成事件，并把事件格式化写入 run_state。
 from ai_report_agent.events import (
@@ -92,6 +100,49 @@ from ai_report_agent.sources import collect_news, load_sources, save_raw_items
 from ai_report_agent.state import create_run_state, save_run_state
 
 
+def attach_llm_usage_metrics(span, before_usage: dict[str, int | float]) -> None:
+    """Attach LLM usage delta to a trace span."""
+
+    for name, value in llm_usage_delta(before_usage).items():
+        span.metrics[name] = value
+
+
+def attach_run_llm_usage_metrics(trace: TraceRecorder) -> dict[str, int | float]:
+    """Attach total LLM usage to run-level trace metrics."""
+
+    usage = summarize_llm_usage()
+    for name, value in usage.items():
+        trace.set_metric(name, value)
+    return usage
+
+
+def attach_balance_cost_metrics(
+    trace: TraceRecorder,
+    settings: Settings,
+    balance_before: dict[str, int | float | str | bool],
+) -> dict[str, int | float | str | bool]:
+    """Attach balance-delta cost metrics to run-level trace metrics."""
+
+    if settings.deepseek_cost_mode != "balance_delta":
+        metrics: dict[str, int | float | str | bool] = {
+            "llm_cost_mode": settings.deepseek_cost_mode,
+            "llm_actual_cost_available": False,
+            "llm_actual_cost": 0.0,
+            "llm_actual_cost_currency": settings.deepseek_cost_currency,
+            "llm_balance_before": 0.0,
+            "llm_balance_after": 0.0,
+            "llm_balance_delta": 0.0,
+            "llm_balance_error": "balance_delta_disabled",
+        }
+    else:
+        balance_after = fetch_deepseek_balance(settings)
+        metrics = deepseek_balance_delta(settings, balance_before, balance_after)
+
+    for name, value in metrics.items():
+        trace.set_metric(name, value)
+    return metrics
+
+
 def run_daily_report(settings: Settings) -> Path:
     """运行一次完整的 AI 热点日报 Agent，并返回最终报告路径。
 
@@ -108,8 +159,16 @@ def run_daily_report(settings: Settings) -> Path:
     # 创建 trace 记录器；run_id 用来把 trace、run_state、数据库记录对应起来。
     trace = TraceRecorder(state.run_id)
 
+    # 清空本进程内上一轮可能遗留的 LLM usage 记录。
+    reset_llm_usage()
+
+    balance_before: dict[str, int | float | str | bool] = {}
+
     # try 包住完整流程，这样即使中途失败，也能在 except 里保存失败 trace。
     try:
+        if settings.deepseek_cost_mode == "balance_delta":
+            balance_before = fetch_deepseek_balance(settings)
+
         # 用一个 trace span 包住数据库初始化阶段，记录这个阶段耗时和是否成功。
         with trace.span("initialize_database"):
             # 初始化 SQLite 数据库；如果表已经存在，这一步不会破坏旧数据。
@@ -324,11 +383,14 @@ def run_daily_report(settings: Settings) -> Path:
 
         # 用 LLM 判断哪些候选事件其实属于同一真实事件，并重新命名事件标题。
         with trace.span("refine_events_with_llm") as span:
+            usage_before = summarize_llm_usage()
+
             # events 是最终事件列表，event_decisions 是 LLM 合并过程说明。
             events, event_decisions = refine_events_with_llm(settings, candidate_events)
 
             # 在 trace 中记录最终事件数量。
             span.metrics["final_events"] = len(events)
+            attach_llm_usage_metrics(span, usage_before)
 
         # 把 LLM 事件合并过程写入 run_state。
         state.decisions.extend(event_decisions)
@@ -397,11 +459,14 @@ def run_daily_report(settings: Settings) -> Path:
 
         # 调用 DeepSeek 生成日报正文。
         with trace.span("analyze_news") as span:
+            usage_before = summarize_llm_usage()
+
             # analyze_news 会做分批分析和最终汇总。
             analysis = analyze_news(settings, selected_items, profile, history_context, events)
 
             # 在 trace 里记录模型输出正文长度，便于发现异常短输出。
             span.metrics["analysis_chars"] = len(analysis)
+            attach_llm_usage_metrics(span, usage_before)
 
         # 把 LLM 正文、参考来源、采集状态拼装成完整 Markdown。
         with trace.span("build_report_markdown") as span:
@@ -425,11 +490,14 @@ def run_daily_report(settings: Settings) -> Path:
 
         # 调用 critic 对报告做质量检查。
         with trace.span("critique_report") as span:
+            usage_before = summarize_llm_usage()
+
             # critique_report 会返回 PASS/FAIL 和修改建议。
             critique = critique_report(settings, markdown, profile)
 
             # should_revise 会判断 critic 结果是否需要触发自动修订。
             span.metrics["critic_failed"] = should_revise(critique)
+            attach_llm_usage_metrics(span, usage_before)
 
         # 把 critic 原始结果写入 run_state。
         state.critic_result = critique
@@ -444,6 +512,8 @@ def run_daily_report(settings: Settings) -> Path:
 
             # 调用 DeepSeek 根据 critic 意见修订报告。
             with trace.span("revise_report") as span:
+                usage_before = summarize_llm_usage()
+
                 # 保留修订前的完整报告。LLM 修订有概率返回半截内容，
                 # 不能让短输出直接覆盖一份已经完整生成的日报。
                 original_markdown = markdown
@@ -453,6 +523,7 @@ def run_daily_report(settings: Settings) -> Path:
 
                 # 在 trace 中记录修订后文本长度。
                 span.metrics["revised_markdown_chars"] = len(revised_markdown)
+                attach_llm_usage_metrics(span, usage_before)
 
                 # Version 13 稳定性补丁：校验修订稿是否完整。
                 # 如果修订稿过短或缺少关键结构，保留原报告，避免最终报告被截断。
@@ -508,6 +579,27 @@ def run_daily_report(settings: Settings) -> Path:
         # 记录最终事件数量。
         trace.set_metric("final_events", len(events))
 
+        # 记录本次运行整体 LLM token 和成本估算。
+        llm_usage = attach_run_llm_usage_metrics(trace)
+        cost_metrics = attach_balance_cost_metrics(trace, settings, balance_before)
+        if llm_usage["llm_call_count"]:
+            if cost_metrics.get("llm_actual_cost_available"):
+                cost_text = (
+                    f"actual cost {cost_metrics['llm_actual_cost_currency']} "
+                    f"{float(cost_metrics['llm_actual_cost']):.6f}"
+                )
+            else:
+                cost_text = f"estimated cost ${llm_usage['llm_estimated_cost_usd']:.6f}"
+                balance_error = str(cost_metrics.get("llm_balance_error", "") or "")
+                if balance_error:
+                    cost_text = f"{cost_text}; balance delta unavailable: {balance_error}"
+            state.decisions.append(
+                "LLM usage: "
+                f"{llm_usage['llm_call_count']} calls, "
+                f"{llm_usage['llm_total_tokens']} total tokens, "
+                f"{cost_text}."
+            )
+
         # 标记 trace 正常结束。
         trace.finish("ok")
 
@@ -551,6 +643,10 @@ def run_daily_report(settings: Settings) -> Path:
 
     # 捕获任意异常，确保失败运行也能留下 trace 和 run_state。
     except Exception:
+        # 失败运行也尽量保留已完成 LLM 调用的用量信息。
+        attach_run_llm_usage_metrics(trace)
+        attach_balance_cost_metrics(trace, settings, balance_before)
+
         # 即使失败，也把 trace 标记为 error。
         trace.finish("error")
 

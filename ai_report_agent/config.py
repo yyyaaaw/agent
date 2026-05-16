@@ -112,6 +112,18 @@ class Settings:
     # DeepSeek 单次最大输出 token 数。
     deepseek_max_tokens: int
 
+    # DeepSeek 输入 token 单价，单位：美元 / 100 万 tokens。默认 0 表示只记录 tokens，不估算成本。
+    deepseek_input_price_per_1m_tokens: float
+
+    # DeepSeek 输出 token 单价，单位：美元 / 100 万 tokens。默认 0 表示只记录 tokens，不估算成本。
+    deepseek_output_price_per_1m_tokens: float
+
+    # DeepSeek 成本统计模式：balance_delta 表示优先用账户余额差额记录实际扣费。
+    deepseek_cost_mode: str
+
+    # DeepSeek 余额接口使用的币种，通常是 CNY。
+    deepseek_cost_currency: str
+
     # 是否把 DeepSeek 的输出打印到终端。
     show_deepseek_output: bool
 
@@ -343,6 +355,18 @@ def load_settings() -> Settings:
 
         # DeepSeek 单次最大输出 token 数。
         deepseek_max_tokens=getenv_int("DEEPSEEK_MAX_TOKENS", 4096),
+
+        # DeepSeek 输入 token 单价。价格会变化，所以默认不硬编码供应商价格。
+        deepseek_input_price_per_1m_tokens=getenv_float("DEEPSEEK_INPUT_PRICE_PER_1M_TOKENS", 0.0),
+
+        # DeepSeek 输出 token 单价。配置后 evaluation 会给出成本估算。
+        deepseek_output_price_per_1m_tokens=getenv_float("DEEPSEEK_OUTPUT_PRICE_PER_1M_TOKENS", 0.0),
+
+        # DeepSeek 成本统计模式。默认读取运行前后余额差额；失败时仍保留 token 估算兜底。
+        deepseek_cost_mode=os.getenv("DEEPSEEK_COST_MODE", "balance_delta").strip().lower(),
+
+        # DeepSeek 余额币种。官方余额接口通常返回 CNY。
+        deepseek_cost_currency=os.getenv("DEEPSEEK_COST_CURRENCY", "CNY").strip().upper(),
 
         # 是否在终端显示 DeepSeek 输出。
         show_deepseek_output=getenv_bool("SHOW_DEEPSEEK_OUTPUT", True),

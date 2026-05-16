@@ -125,6 +125,7 @@ C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --mcp
 - 平均每事件新闻数：用于判断是否从新闻级列表提升到事件级聚合。
 - RAG 命中率：运行中是否检索到历史上下文。
 - 平均耗时、p95 耗时和最慢阶段：来自 trace span。
+- LLM 调用次数、token 用量、实际扣费和估算成本：优先用 DeepSeek 运行前后余额差额，失败时保留 usage * 单价估算。
 
 ## Safety
 

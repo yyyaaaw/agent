@@ -39,6 +39,278 @@ from ai_report_agent.events import NewsEvent, format_events_for_prompt, rebuild_
 # 这个常量集中放在文件顶部，后续如果 API 地址变化，只改这里即可。
 DEEPSEEK_CHAT_URL = "https://api.deepseek.com/chat/completions"
 
+# DeepSeek 账户余额接口。Chat Completion 响应只提供 token usage，不直接返回本次扣费；
+# 因此这里用运行前后的余额差额记录更接近真实账单的成本。
+DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance"
+
+# 本进程内的 LLM 调用用量记录。
+# run_daily_report 会在每次运行开始时清空它，然后把汇总写进 trace。
+_LLM_USAGE_RECORDS: list[dict[str, int | float | str | bool]] = []
+
+
+def reset_llm_usage() -> None:
+    """Clear in-process LLM usage records for a new agent run."""
+
+    _LLM_USAGE_RECORDS.clear()
+
+
+def get_llm_usage_records() -> list[dict[str, int | float | str | bool]]:
+    """Return a copy of recorded LLM usage calls."""
+
+    return [dict(record) for record in _LLM_USAGE_RECORDS]
+
+
+def summarize_llm_usage(
+    records: list[dict[str, int | float | str | bool]] | None = None,
+) -> dict[str, int | float]:
+    """Summarize LLM usage records for trace and evaluation."""
+
+    selected_records = records if records is not None else _LLM_USAGE_RECORDS
+    return {
+        "llm_call_count": len(selected_records),
+        "llm_usage_available_count": sum(1 for record in selected_records if record.get("usage_available")),
+        "llm_prompt_tokens": sum(int(record.get("prompt_tokens", 0) or 0) for record in selected_records),
+        "llm_completion_tokens": sum(int(record.get("completion_tokens", 0) or 0) for record in selected_records),
+        "llm_total_tokens": sum(int(record.get("total_tokens", 0) or 0) for record in selected_records),
+        "llm_prompt_cache_hit_tokens": sum(
+            int(record.get("prompt_cache_hit_tokens", 0) or 0)
+            for record in selected_records
+        ),
+        "llm_prompt_cache_miss_tokens": sum(
+            int(record.get("prompt_cache_miss_tokens", 0) or 0)
+            for record in selected_records
+        ),
+        "llm_estimated_cost_usd": round(
+            sum(float(record.get("estimated_cost_usd", 0.0) or 0.0) for record in selected_records),
+            6,
+        ),
+    }
+
+
+def llm_usage_delta(
+    before: dict[str, int | float],
+    after: dict[str, int | float] | None = None,
+) -> dict[str, int | float]:
+    """Return the numeric usage delta between two summaries."""
+
+    after_summary = after or summarize_llm_usage()
+    delta: dict[str, int | float] = {}
+    for key, after_value in after_summary.items():
+        before_value = before.get(key, 0)
+        value = float(after_value) - float(before_value)
+        if key == "llm_estimated_cost_usd":
+            delta[key] = round(value, 6)
+        else:
+            delta[key] = int(value)
+    return delta
+
+
+def record_llm_usage(settings: Settings, debug_name: str, result: dict) -> None:
+    """Record token usage returned by the API response."""
+
+    usage = result.get("usage", {})
+    usage_available = isinstance(usage, dict) and bool(usage)
+    usage_payload = usage if isinstance(usage, dict) else {}
+
+    prompt_tokens = int(usage_payload.get("prompt_tokens", 0) or 0)
+    completion_tokens = int(usage_payload.get("completion_tokens", 0) or 0)
+    raw_total_tokens = usage_payload.get("total_tokens")
+    total_tokens = int(raw_total_tokens if raw_total_tokens is not None else prompt_tokens + completion_tokens)
+    prompt_cache_hit_tokens = int(usage_payload.get("prompt_cache_hit_tokens", 0) or 0)
+    prompt_cache_miss_tokens = int(usage_payload.get("prompt_cache_miss_tokens", 0) or 0)
+
+    _LLM_USAGE_RECORDS.append(
+        {
+            "debug_name": debug_name,
+            "model": settings.deepseek_model,
+            "usage_available": usage_available,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "prompt_cache_hit_tokens": prompt_cache_hit_tokens,
+            "prompt_cache_miss_tokens": prompt_cache_miss_tokens,
+            "estimated_cost_usd": estimate_llm_cost(settings, prompt_tokens, completion_tokens),
+        }
+    )
+
+
+def estimate_llm_cost(settings: Settings, prompt_tokens: int, completion_tokens: int) -> float:
+    """Estimate call cost using user-configured per-1M-token prices."""
+
+    input_cost = prompt_tokens / 1_000_000 * settings.deepseek_input_price_per_1m_tokens
+    output_cost = completion_tokens / 1_000_000 * settings.deepseek_output_price_per_1m_tokens
+    return round(input_cost + output_cost, 6)
+
+
+def _to_float(value: object, default: float = 0.0) -> float:
+    """Convert provider string/number fields to float."""
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _unavailable_balance(
+    settings: Settings,
+    error: str,
+) -> dict[str, int | float | str | bool]:
+    """Return a normalized unavailable balance payload."""
+
+    return {
+        "balance_available": False,
+        "balance_is_available": False,
+        "balance_currency": settings.deepseek_cost_currency,
+        "balance_total": 0.0,
+        "balance_granted": 0.0,
+        "balance_topped_up": 0.0,
+        "balance_raw_count": 0,
+        "balance_error": error,
+    }
+
+
+def parse_deepseek_balance(
+    payload: dict,
+    preferred_currency: str = "CNY",
+) -> dict[str, int | float | str | bool]:
+    """Normalize DeepSeek balance API payload for trace metrics."""
+
+    balance_infos = payload.get("balance_infos", [])
+    if not isinstance(balance_infos, list) or not balance_infos:
+        return {
+            "balance_available": False,
+            "balance_is_available": bool(payload.get("is_available", False)),
+            "balance_currency": preferred_currency,
+            "balance_total": 0.0,
+            "balance_granted": 0.0,
+            "balance_topped_up": 0.0,
+            "balance_raw_count": 0,
+            "balance_error": "no_balance_info",
+        }
+
+    normalized_currency = preferred_currency.strip().upper() or "CNY"
+    selected = None
+    for entry in balance_infos:
+        if not isinstance(entry, dict):
+            continue
+        currency = str(entry.get("currency", "")).strip().upper()
+        if currency == normalized_currency:
+            selected = entry
+            break
+    if selected is None:
+        selected = next((entry for entry in balance_infos if isinstance(entry, dict)), None)
+
+    if not isinstance(selected, dict):
+        return {
+            "balance_available": False,
+            "balance_is_available": bool(payload.get("is_available", False)),
+            "balance_currency": normalized_currency,
+            "balance_total": 0.0,
+            "balance_granted": 0.0,
+            "balance_topped_up": 0.0,
+            "balance_raw_count": len(balance_infos),
+            "balance_error": "no_parseable_balance_info",
+        }
+
+    currency = str(selected.get("currency", normalized_currency)).strip().upper() or normalized_currency
+    return {
+        "balance_available": bool(payload.get("is_available", False)),
+        "balance_is_available": bool(payload.get("is_available", False)),
+        "balance_currency": currency,
+        "balance_total": round(_to_float(selected.get("total_balance")), 6),
+        "balance_granted": round(_to_float(selected.get("granted_balance")), 6),
+        "balance_topped_up": round(_to_float(selected.get("topped_up_balance")), 6),
+        "balance_raw_count": len(balance_infos),
+        "balance_error": "",
+    }
+
+
+def fetch_deepseek_balance(settings: Settings) -> dict[str, int | float | str | bool]:
+    """Fetch DeepSeek account balance without failing the main agent run."""
+
+    if not settings.deepseek_api_key:
+        return _unavailable_balance(settings, "missing_api_key")
+
+    request = urllib.request.Request(
+        DEEPSEEK_BALANCE_URL,
+        headers={
+            "Authorization": f"Bearer {settings.deepseek_api_key}",
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=settings.request_timeout) as response:
+            body = response.read().decode("utf-8")
+        payload = json.loads(body)
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="replace")
+        return _unavailable_balance(settings, f"HTTP {exc.code}: {error_body[:200]}")
+    except (TimeoutError, socket.timeout):
+        return _unavailable_balance(settings, "balance_request_timeout")
+    except urllib.error.URLError as exc:
+        return _unavailable_balance(settings, f"balance_request_failed: {exc}")
+    except json.JSONDecodeError as exc:
+        return _unavailable_balance(settings, f"balance_json_parse_failed: {exc}")
+
+    if not isinstance(payload, dict):
+        return _unavailable_balance(settings, "balance_payload_not_object")
+    return parse_deepseek_balance(payload, settings.deepseek_cost_currency)
+
+
+def deepseek_balance_delta(
+    settings: Settings,
+    before: dict[str, int | float | str | bool],
+    after: dict[str, int | float | str | bool],
+) -> dict[str, int | float | str | bool]:
+    """Compute actual LLM cost from account balance before/after one run."""
+
+    before_total = _to_float(before.get("balance_total"))
+    after_total = _to_float(after.get("balance_total"))
+    before_currency = str(before.get("balance_currency", settings.deepseek_cost_currency)).upper()
+    after_currency = str(after.get("balance_currency", settings.deepseek_cost_currency)).upper()
+    currency = after_currency or before_currency or settings.deepseek_cost_currency
+
+    metrics: dict[str, int | float | str | bool] = {
+        "llm_cost_mode": settings.deepseek_cost_mode,
+        "llm_actual_cost_available": False,
+        "llm_actual_cost": 0.0,
+        "llm_actual_cost_currency": currency,
+        "llm_balance_before": round(before_total, 6),
+        "llm_balance_after": round(after_total, 6),
+        "llm_balance_delta": round(before_total - after_total, 6),
+        "llm_balance_error": "",
+    }
+
+    if settings.deepseek_cost_mode != "balance_delta":
+        metrics["llm_balance_error"] = "balance_delta_disabled"
+        return metrics
+
+    before_available = bool(before.get("balance_available", False))
+    after_available = bool(after.get("balance_available", False))
+    if not before_available or not after_available:
+        errors = [
+            str(before.get("balance_error", "") or "before_balance_unavailable"),
+            str(after.get("balance_error", "") or "after_balance_unavailable"),
+        ]
+        metrics["llm_balance_error"] = "; ".join(error for error in errors if error)
+        return metrics
+
+    if before_currency != after_currency:
+        metrics["llm_balance_error"] = f"balance_currency_mismatch:{before_currency}->{after_currency}"
+        return metrics
+
+    delta = before_total - after_total
+    if delta < 0:
+        metrics["llm_balance_error"] = "balance_increased_or_concurrent_activity"
+        return metrics
+
+    metrics["llm_actual_cost_available"] = True
+    metrics["llm_actual_cost"] = round(delta, 6)
+    metrics["llm_balance_error"] = ""
+    return metrics
+
 
 def chunk_items(items: list[NewsItem], batch_size: int) -> list[list[NewsItem]]:
     """把资讯条目切成多个批次，避免单次请求过大。
@@ -328,6 +600,9 @@ def call_deepseek(settings: Settings, prompt: str, debug_name: str) -> str:
 
     # DeepSeek 返回的是 JSON 字符串，这里转成 Python 字典。
     result = json.loads(body)
+
+    # 记录 usage，供 trace/evaluation 汇总 token 和成本。
+    record_llm_usage(settings, debug_name, result)
 
     # 从返回字典里提取模型回答文本。
     text = extract_message_text(result)

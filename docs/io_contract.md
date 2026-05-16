@@ -31,6 +31,10 @@
 | `MAX_ANALYSIS_ITEMS` | `40` | 最多进入 LLM 分析的新闻数。 |
 | `BATCH_SIZE` | `20` | LLM 分批处理大小。 |
 | `REQUEST_TIMEOUT` | `120` | 网络请求超时秒数。 |
+| `DEEPSEEK_COST_MODE` | `balance_delta` | 成本统计模式，默认用 DeepSeek 运行前后余额差额。 |
+| `DEEPSEEK_COST_CURRENCY` | `CNY` | 余额差额使用的币种。 |
+| `DEEPSEEK_INPUT_PRICE_PER_1M_TOKENS` | `0` | 输入 token 单价，仅作为余额差额不可用时的估算兜底。 |
+| `DEEPSEEK_OUTPUT_PRICE_PER_1M_TOKENS` | `0` | 输出 token 单价，仅作为余额差额不可用时的估算兜底。 |
 
 ### `sources.json`
 
@@ -95,11 +99,13 @@
 - `metrics`
 - `error`
 
+LLM 相关 span 还会记录本阶段的调用次数、prompt tokens、completion tokens、total tokens 和估算成本。run-level trace 还会记录 DeepSeek 余额差额字段，包括 `llm_actual_cost_available`、`llm_actual_cost`、`llm_actual_cost_currency`、`llm_balance_before`、`llm_balance_after` 和 `llm_balance_error`。
+
 ### `data/eval/eval_report_*.md`
 
 离线评估报告。用于回答“最近几次运行是否健康”。
+评估报告会汇总运行成功率、critic 通过率、幻觉代理率、来源成功率、RAG 命中率、事件压缩率、耗时、LLM 调用次数、token 用量、余额差额实际扣费和估算成本。
 
 ### `data/agent.sqlite3`
 
 本地长期数据库，包含 runs、news_items、events、reports、feedback 和 source_errors 等表。
-

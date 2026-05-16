@@ -52,6 +52,17 @@ class EvaluationResult:
     revision_accepted: bool | None
     feedback_count: int
     trace_duration_ms: float
+    llm_call_count: int
+    llm_prompt_tokens: int
+    llm_completion_tokens: int
+    llm_total_tokens: int
+    llm_estimated_cost_usd: float
+    llm_actual_cost_available: bool
+    llm_actual_cost: float
+    llm_actual_cost_currency: str
+    llm_balance_delta: float
+    llm_cost_mode: str
+    llm_balance_error: str
     slowest_span: str
     slowest_span_duration_ms: float
     findings: list[str]
@@ -86,6 +97,13 @@ class EvaluationSummary:
     average_items_per_event: float
     average_duration_ms: float
     p95_duration_ms: float
+    total_llm_calls: int
+    total_llm_tokens: int
+    actual_llm_cost_available_runs: int
+    actual_llm_cost_total: float
+    actual_llm_cost_currency: str
+    estimated_llm_cost_usd: float
+    average_llm_cost_per_run_usd: float
     revision_accept_rate: float
 
 
@@ -167,6 +185,9 @@ def evaluate_single_run(settings: Settings, run_id: str) -> EvaluationResult:
     trace_payload = read_trace_payload(settings.raw_data_dir.parent / "traces", run_id)
     trace_status = str(trace_payload.get("status", "missing")) if trace_payload else "missing"
     trace_duration_ms = float(trace_payload.get("duration_ms", 0.0)) if trace_payload else 0.0
+    trace_metrics = trace_payload.get("metrics", {}) if trace_payload else {}
+    if not isinstance(trace_metrics, dict):
+        trace_metrics = {}
     candidate_event_count = int(trace_span_metric(trace_payload, "cluster_scored_items", "candidate_events", 0))
     candidate_event_compression_ratio = float(
         trace_span_metric(trace_payload, "cluster_scored_items", "candidate_event_compression_ratio", 0.0)
@@ -219,6 +240,17 @@ def evaluate_single_run(settings: Settings, run_id: str) -> EvaluationResult:
         revision_accepted=revision_accepted,
         feedback_count=feedback_count,
         trace_duration_ms=trace_duration_ms,
+        llm_call_count=int(trace_metrics.get("llm_call_count", 0) or 0),
+        llm_prompt_tokens=int(trace_metrics.get("llm_prompt_tokens", 0) or 0),
+        llm_completion_tokens=int(trace_metrics.get("llm_completion_tokens", 0) or 0),
+        llm_total_tokens=int(trace_metrics.get("llm_total_tokens", 0) or 0),
+        llm_estimated_cost_usd=float(trace_metrics.get("llm_estimated_cost_usd", 0.0) or 0.0),
+        llm_actual_cost_available=metric_bool(trace_metrics.get("llm_actual_cost_available", False)),
+        llm_actual_cost=float(trace_metrics.get("llm_actual_cost", 0.0) or 0.0),
+        llm_actual_cost_currency=str(trace_metrics.get("llm_actual_cost_currency", "") or ""),
+        llm_balance_delta=float(trace_metrics.get("llm_balance_delta", 0.0) or 0.0),
+        llm_cost_mode=str(trace_metrics.get("llm_cost_mode", "") or ""),
+        llm_balance_error=str(trace_metrics.get("llm_balance_error", "") or ""),
         slowest_span=slowest_span,
         slowest_span_duration_ms=slowest_span_duration_ms,
         findings=findings,
@@ -413,6 +445,13 @@ def build_evaluation_summary(
             average_items_per_event=0.0,
             average_duration_ms=0.0,
             p95_duration_ms=0.0,
+            total_llm_calls=0,
+            total_llm_tokens=0,
+            actual_llm_cost_available_runs=0,
+            actual_llm_cost_total=0.0,
+            actual_llm_cost_currency="",
+            estimated_llm_cost_usd=0.0,
+            average_llm_cost_per_run_usd=0.0,
             revision_accept_rate=0.0,
         )
 
@@ -422,6 +461,25 @@ def build_evaluation_summary(
         for result in revision_runs
         if result.revision_accepted is True
     ]
+    actual_cost_results = [
+        result
+        for result in results
+        if result.llm_actual_cost_available
+    ]
+    actual_cost_currencies = sorted(
+        {
+            result.llm_actual_cost_currency
+            for result in actual_cost_results
+            if result.llm_actual_cost_currency
+        }
+    )
+    actual_cost_currency = (
+        actual_cost_currencies[0]
+        if len(actual_cost_currencies) == 1
+        else "mixed"
+        if actual_cost_currencies
+        else ""
+    )
 
     return EvaluationSummary(
         generated_at=generated_at,
@@ -442,6 +500,16 @@ def build_evaluation_summary(
         average_items_per_event=round(average([result.avg_items_per_event for result in results]), 2),
         average_duration_ms=round(average([result.trace_duration_ms for result in results]), 2),
         p95_duration_ms=round(percentile([result.trace_duration_ms for result in results], 95), 2),
+        total_llm_calls=sum(result.llm_call_count for result in results),
+        total_llm_tokens=sum(result.llm_total_tokens for result in results),
+        actual_llm_cost_available_runs=len(actual_cost_results),
+        actual_llm_cost_total=round(sum(result.llm_actual_cost for result in actual_cost_results), 6),
+        actual_llm_cost_currency=actual_cost_currency,
+        estimated_llm_cost_usd=round(sum(result.llm_estimated_cost_usd for result in results), 6),
+        average_llm_cost_per_run_usd=round(
+            average([result.llm_estimated_cost_usd for result in results]),
+            6,
+        ),
         revision_accept_rate=percentage(len(accepted_revisions), len(revision_runs)),
     )
 
@@ -475,6 +543,14 @@ def percentage(numerator: int, denominator: int) -> float:
     if denominator <= 0:
         return 0.0
     return round(numerator / denominator * 100, 1)
+
+
+def metric_bool(value: object) -> bool:
+    """Read bool metrics safely from JSON payloads."""
+
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes"}
 
 
 def score_run(
@@ -589,6 +665,12 @@ No runs were found in the database. Run `python catch_ai.py --run-once` first.
         f"| Avg items per final event | {summary.average_items_per_event:.2f} |",
         f"| Avg duration | {summary.average_duration_ms:.0f} ms |",
         f"| P95 duration | {summary.p95_duration_ms:.0f} ms |",
+        f"| Total LLM calls | {summary.total_llm_calls} |",
+        f"| Total LLM tokens | {summary.total_llm_tokens} |",
+        f"| Actual LLM cost | {format_actual_cost(summary.actual_llm_cost_total, summary.actual_llm_cost_currency)} |",
+        f"| Actual cost available runs | {summary.actual_llm_cost_available_runs}/{summary.evaluated_runs} |",
+        f"| Estimated LLM cost | ${summary.estimated_llm_cost_usd:.6f} |",
+        f"| Avg LLM cost/run | ${summary.average_llm_cost_per_run_usd:.6f} |",
         f"| Revision accept rate | {summary.revision_accept_rate:.1f}% |",
         "",
         "## Source Health",
@@ -601,8 +683,8 @@ No runs were found in the database. Run `python catch_ai.py --run-once` first.
         "",
         "## Run Summary",
         "",
-        "| Run ID | Success | Score | Raw | Unique | Selected | Candidate Events | Compression | Final Events | Avg Items/Event | Source Errors | RAG | Critic | Unsupported Fact | Trace ms | Slowest Span |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | ---: | --- |",
+        "| Run ID | Success | Score | Raw | Unique | Selected | Candidate Events | Compression | Final Events | Avg Items/Event | Source Errors | RAG | Critic | Unsupported Fact | LLM Calls | LLM Tokens | Actual Cost | Est. Cost | Trace ms | Slowest Span |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
 
     for result in results:
@@ -615,6 +697,9 @@ No runs were found in the database. Run `python catch_ai.py --run-once` first.
             f"{result.source_error_count} | {yes_no(result.rag_hit)} | "
             f"{'PASS' if result.critic_passed else 'FAIL'} | "
             f"{yes_no(result.critic_has_unsupported_fact)} | "
+            f"{result.llm_call_count} | {result.llm_total_tokens} | "
+            f"{format_run_actual_cost(result)} | "
+            f"${result.llm_estimated_cost_usd:.6f} | "
             f"{result.trace_duration_ms:.0f} | {format_slowest_span(result)} |"
         )
 
@@ -632,6 +717,8 @@ No runs were found in the database. Run `python catch_ai.py --run-once` first.
             "- Low collection scores usually mean source configuration or network reliability needs work.",
             "- Weak event compression means the clustering or LLM event-merge prompt should be improved.",
             "- Hallucination proxy rate counts critic findings about unsupported or fabricated facts; it is not a full factuality benchmark.",
+            "- Actual LLM cost comes from DeepSeek balance delta and is most reliable when the same API key is not used by another job during the run.",
+            "- Estimated LLM cost is a fallback populated when token usage is present in trace and per-1M-token prices are configured.",
             "- Missing RAG hits means the long-term memory is not yet contributing useful context.",
             "- Critic failures should be reviewed before trusting the final report.",
         ]
@@ -644,6 +731,22 @@ def yes_no(value: bool) -> str:
     """Format booleans for Markdown tables."""
 
     return "yes" if value else "no"
+
+
+def format_actual_cost(amount: float, currency: str) -> str:
+    """Format provider balance-delta cost."""
+
+    if not currency:
+        return "n/a"
+    return f"{currency} {amount:.6f}"
+
+
+def format_run_actual_cost(result: EvaluationResult) -> str:
+    """Format one run's actual cost field."""
+
+    if not result.llm_actual_cost_available:
+        return "n/a"
+    return format_actual_cost(result.llm_actual_cost, result.llm_actual_cost_currency)
 
 
 def format_slowest_span(result: EvaluationResult) -> str:
