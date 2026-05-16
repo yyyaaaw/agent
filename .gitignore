@@ -2,3 +2,6 @@
 .vscode/
 __pycache__/
 *.py[cod]
+.env
+reports/
+data/raw/

@@ -1,0 +1,44 @@
+{
+  "liked_keywords": [
+    "agent",
+    "workflow",
+    "智能体",
+    "工作流",
+    "自动化",
+    "办公",
+    "nvidia",
+    "openai发布企业级ai规模化应用指南",
+    "openai公布codex安全运行方案",
+    "parloa利用openai模型构建语音客服代理",
+    "microsoft展示品牌使用ai提升生产力与创意力的案例",
+    "microsoft开源“未来农场”工具包",
+    "微软首席技术官kevin",
+    "scott探讨ai未来趋势",
+    "微软探讨数据与ai如何变革金融服务客服中心",
+    "ai装备无人机用于研究濒危海豚",
+    "在线数学辅导服务利用ai提升学生技能",
+    "随着ai复杂性增加，模型构建者依赖nvidia基础设施"
+  ],
+  "disliked_keywords": [
+    "融资",
+    "估值",
+    "纯论文"
+  ],
+  "liked_sources": [
+    "OpenAI Blog",
+    "Microsoft AI Blog",
+    "TechCrunch AI",
+    "NVIDIA AI Blog",
+    "The Decoder"
+  ],
+  "disliked_sources": [],
+  "liked_categories": [
+    "应用与产品",
+    "企业应用",
+    "产品与模型",
+    "应用与商业"
+  ],
+  "disliked_categories": [
+    "研究论文"
+  ]
+}

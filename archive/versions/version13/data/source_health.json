@@ -1,0 +1,111 @@
+{
+  "OpenAI Blog": {
+    "source_name": "OpenAI Blog",
+    "configured_url": "https://openai.com/news/rss.xml",
+    "working_url": "https://openai.com/news/rss.xml",
+    "last_status": "success",
+    "last_success_at": "2026-05-15 10:16:19",
+    "last_error": "",
+    "last_item_count": 6,
+    "success_count": 2,
+    "failure_count": 0,
+    "consecutive_failures": 0
+  },
+  "Google DeepMind Blog": {
+    "source_name": "Google DeepMind Blog",
+    "configured_url": "https://deepmind.google/discover/blog/rss.xml",
+    "working_url": "https://deepmind.google/blog/rss.xml",
+    "last_status": "success",
+    "last_success_at": "2026-05-15 10:16:22",
+    "last_error": "",
+    "last_item_count": 6,
+    "success_count": 2,
+    "failure_count": 0,
+    "consecutive_failures": 0
+  },
+  "Microsoft AI Blog": {
+    "source_name": "Microsoft AI Blog",
+    "configured_url": "https://blogs.microsoft.com/ai/feed/",
+    "working_url": "https://blogs.microsoft.com/ai/feed/",
+    "last_status": "success",
+    "last_success_at": "2026-05-15 10:16:53",
+    "last_error": "",
+    "last_item_count": 6,
+    "success_count": 2,
+    "failure_count": 0,
+    "consecutive_failures": 0
+  },
+  "NVIDIA AI Blog": {
+    "source_name": "NVIDIA AI Blog",
+    "configured_url": "https://blogs.nvidia.com/blog/category/deep-learning/feed/",
+    "working_url": "https://blogs.nvidia.com/blog/category/deep-learning/feed/",
+    "last_status": "success",
+    "last_success_at": "2026-05-15 10:16:55",
+    "last_error": "",
+    "last_item_count": 6,
+    "success_count": 2,
+    "failure_count": 0,
+    "consecutive_failures": 0
+  },
+  "VentureBeat AI": {
+    "source_name": "VentureBeat AI",
+    "configured_url": "https://venturebeat.com/category/ai/feed/",
+    "working_url": "https://venturebeat.com/category/ai/feed",
+    "last_status": "success",
+    "last_success_at": "2026-05-15 10:17:16",
+    "last_error": "",
+    "last_item_count": 6,
+    "success_count": 2,
+    "failure_count": 0,
+    "consecutive_failures": 0
+  },
+  "TechCrunch AI": {
+    "source_name": "TechCrunch AI",
+    "configured_url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "working_url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "last_status": "success",
+    "last_success_at": "2026-05-15 10:17:35",
+    "last_error": "",
+    "last_item_count": 6,
+    "success_count": 2,
+    "failure_count": 0,
+    "consecutive_failures": 0
+  },
+  "The Decoder": {
+    "source_name": "The Decoder",
+    "configured_url": "https://the-decoder.com/feed/",
+    "working_url": "https://the-decoder.com/feed/",
+    "last_status": "failure",
+    "last_success_at": "2026-05-14 23:01:43",
+    "last_error_at": "2026-05-15 10:17:42",
+    "last_error": "https://the-decoder.com/feed/ -> HTTP 500: Internal Server Error；https://the-decoder.com/rss.xml -> HTTP 500: Internal Server Error；https://the-decoder.com/atom.xml -> HTTP 500: Internal Server Error；https://the-decoder.com/feed.xml -> HTTP 500: Internal Server Error；https://the-decoder.com/blog/feed/ -> HTTP 500: Internal Server Error",
+    "last_item_count": 0,
+    "success_count": 1,
+    "failure_count": 1,
+    "consecutive_failures": 1
+  },
+  "MIT Technology Review AI": {
+    "source_name": "MIT Technology Review AI",
+    "configured_url": "https://www.technologyreview.com/feed/",
+    "working_url": "https://www.technologyreview.com/feed/",
+    "last_status": "success",
+    "last_success_at": "2026-05-15 10:18:02",
+    "last_error": "",
+    "last_item_count": 6,
+    "success_count": 2,
+    "failure_count": 0,
+    "consecutive_failures": 0
+  },
+  "Arxiv CS AI": {
+    "source_name": "Arxiv CS AI",
+    "configured_url": "https://export.arxiv.org/rss/cs.AI",
+    "working_url": "https://export.arxiv.org/rss/cs.AI",
+    "last_status": "success",
+    "last_success_at": "2026-05-15 10:18:26",
+    "last_error": "",
+    "last_item_count": 6,
+    "success_count": 2,
+    "failure_count": 0,
+    "consecutive_failures": 0
+  }
+}
