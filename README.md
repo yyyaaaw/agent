@@ -35,6 +35,14 @@
 - JSON trace、run state、SQLite 记录和离线评估报告。
 - MCP server，允许外部 MCP 客户端调用 Agent 能力。
 
+## Documentation
+
+- [能力边界](docs/capabilities.md)
+- [架构设计](docs/architecture.md)
+- [输入输出契约](docs/io_contract.md)
+- [指标体系](docs/metrics.md)
+- [安全设计](docs/safety.md)
+
 ## Architecture
 
 ```text
@@ -64,6 +72,10 @@ offline evaluation
 ## Quick Start
 
 安装依赖后，复制 `.env.example` 为本地 `.env` 并配置 `DEEPSEEK_API_KEY`。
+
+```powershell
+python -m pip install -r requirements.txt
+```
 
 生成一次日报：
 
@@ -98,7 +110,7 @@ C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --mcp
 - `data/runs/`：每次运行的结构化状态。
 - `data/traces/`：每个阶段的耗时、状态和指标。
 - `data/eval/`：离线评估报告。
-- `data/agent_v13.sqlite3`：本地长期运行数据库。
+- `data/agent.sqlite3`：本地长期运行数据库。
 - `data/source_health.json`：资讯源可用性记录。
 
 ## Evaluation Metrics
@@ -130,6 +142,7 @@ C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --mcp
 agent/
   ai_report_agent/          # 当前最新版 Agent 代码
   archive/versions/         # 历史版本快照
+  docs/                     # 工程文档
   data/                     # 本地运行数据
   reports/                  # 生成的日报
   catch_ai.py               # CLI 入口

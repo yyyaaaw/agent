@@ -3,5 +3,9 @@
 __pycache__/
 *.py[cod]
 .env
+**/.env
 reports/
-data/raw/
+**/reports/
+data/*
+!data/.gitkeep
+archive/versions/**/data/

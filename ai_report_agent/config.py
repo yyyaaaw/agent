@@ -86,7 +86,7 @@ class Settings:
     # 每次运行状态日志保存目录，例如 data/runs。
     run_log_dir: Path
 
-    # SQLite 数据库文件路径，例如 data/agent_v8.sqlite3。
+    # SQLite 数据库文件路径，例如 data/agent.sqlite3。
     database_path: Path
 
     # 每个 RSS 来源最多抓多少条。
@@ -280,7 +280,7 @@ def load_settings() -> Settings:
     run_log_dir = ROOT_DIR / os.getenv("RUN_LOG_DIR", "data/runs")
 
     # SQLite 数据库路径，默认放在 data 目录下。
-    database_path = ROOT_DIR / os.getenv("DATABASE_PATH", "data/agent_v13.sqlite3")
+    database_path = ROOT_DIR / os.getenv("DATABASE_PATH", "data/agent.sqlite3")
 
     # mkdir 用来创建目录。
     # parents=True 表示父目录不存在时也一起创建。

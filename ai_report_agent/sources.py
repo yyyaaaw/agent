@@ -58,7 +58,7 @@ from typing import Iterable
 
 
 # 来源健康状态默认保存位置。这里使用相对路径，是为了跟随当前运行目录。
-# 当你在 version12 目录运行 catch_ai.py 时，它会写到 version12/data/source_health.json。
+# 在项目根目录运行 catch_ai.py 时，它会写到 data/source_health.json。
 SOURCE_HEALTH_PATH = Path("data/source_health.json")
 
 

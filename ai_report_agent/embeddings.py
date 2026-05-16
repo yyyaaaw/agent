@@ -4,7 +4,7 @@ Version 5 把 Version 4 的“哈希 embedding”升级为本地 BGE-M3 embeddin
 
 推荐配置：
 EMBEDDING_PROVIDER=bge
-EMBEDDING_MODEL_PATH=E:\\Agent_zr\\embedding_model\\bge-m3
+EMBEDDING_MODEL_PATH=models/bge-m3
 
 BGE-M3 会把文本转换成真正的语义向量。
 相比哈希 embedding，它能更好理解：
@@ -81,8 +81,8 @@ def embedding_provider() -> str:
 
 def bge_model_path() -> str:
     """读取 BGE 模型路径。"""
-    # 默认使用用户指定的 E 盘模型目录。
-    return os.getenv("EMBEDDING_MODEL_PATH", r"E:\Agent_zr\embedding_model\bge-m3").strip()
+    # 默认使用项目根目录下的 models/bge-m3，实际使用时可在 .env 中改成本机模型路径。
+    return os.getenv("EMBEDDING_MODEL_PATH", "models/bge-m3").strip()
 
 
 def bge_use_fp16() -> bool:
