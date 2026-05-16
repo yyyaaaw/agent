@@ -115,7 +115,7 @@ C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --mcp
 
 ## Evaluation Metrics
 
-当前已具备或正在补齐的指标：
+`python catch_ai.py --eval` 会输出 Markdown 和 JSON 两份离线评估报告，当前包含：
 
 - 运行成功率：最近 N 次运行中正常完成的比例。
 - critic 通过率：报告质量检查 PASS 的比例。
@@ -124,9 +124,7 @@ C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --mcp
 - 事件压缩率：入选新闻数 / 候选事件数。
 - 平均每事件新闻数：用于判断是否从新闻级列表提升到事件级聚合。
 - RAG 命中率：运行中是否检索到历史上下文。
-- 平均耗时和阶段耗时：来自 trace span。
-
-后续会把这些指标统一汇总到 `python catch_ai.py --eval` 的 Markdown 和 JSON 输出中。
+- 平均耗时、p95 耗时和最慢阶段：来自 trace span。
 
 ## Safety
 

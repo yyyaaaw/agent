@@ -32,9 +32,9 @@
 | `revision_accepted` | trace | 自动修订是否通过完整性校验。 |
 | `duration_ms` | trace | 整体和阶段耗时。 |
 
-## 需要补齐的 KPI 汇总
+## Eval 汇总 KPI
 
-这些是下一步要增强到 `evaluation.py` 的项目级指标：
+`python catch_ai.py --eval` 会把最近 N 次运行汇总成项目级 KPI：
 
 | KPI | 计算方式 | 价值 |
 | --- | --- | --- |
@@ -47,7 +47,8 @@
 | 平均耗时 | 最近 N 次 trace duration 平均值 | 衡量运行效率。 |
 | p95 阶段耗时 | 各 span p95 duration | 定位性能瓶颈。 |
 | 修订接受率 | accepted revision 数 / revision triggered 数 | 衡量修订链路可靠性。 |
-| 成本估算 | token 用量 * 单价 | 衡量长期运行成本。 |
+
+成本估算还需要在模型调用层记录 token usage 后接入。
 
 ## 幻觉率定义
 
@@ -87,4 +88,3 @@
 | 平均事件压缩率 | >= 1.30 |
 | RAG 命中率 | >= 50% |
 | 单次运行耗时 | <= 10 分钟 |
-
