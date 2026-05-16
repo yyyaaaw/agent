@@ -112,7 +112,8 @@ C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --mcp
 
 主要输出：
 
-- `reports/`：最终 Markdown 日报。
+- `reports/`：最终 Markdown 日报，文件名包含 `run_id`，避免同一天多次运行覆盖。
+- `data/raw/`：原始采集新闻 JSON，文件名包含 `run_id`。
 - `data/runs/`：每次运行的结构化状态。
 - `data/traces/`：每个阶段的耗时、状态和指标。
 - `data/eval/`：离线评估报告。

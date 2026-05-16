@@ -71,6 +71,11 @@
 ### `reports/*.md`
 
 最终日报。包含日报正文、参考来源和采集状态。
+文件名格式为 `ai_hotspots_YYYY-MM-DD_<run_id>.md`，避免一天内多次运行互相覆盖。
+
+### `data/raw/*.json`
+
+原始采集新闻。文件名格式为 `ai_news_raw_YYYY-MM-DD_<run_id>.json`，并会写入 run state 的 `raw_data_path`。
 
 ### `data/runs/run_state_*.json`
 
@@ -86,6 +91,7 @@
 | `decisions` | 关键决策轨迹。 |
 | `errors` | 采集或处理错误。 |
 | `report_path` | 最终报告路径。 |
+| `raw_data_path` | 原始采集 JSON 路径。 |
 | `critic_result` | 报告自查结果。 |
 
 ### `data/traces/trace_*.json`

@@ -246,7 +246,7 @@ def run_daily_report(settings: Settings) -> Path:
         # 保存原始采集 JSON 文件，方便以后人工检查模型到底看到了哪些材料。
         with trace.span("save_raw_items"):
             # save_raw_items 会把采集到的 NewsItem 列表写入 data/raw。
-            raw_data_path = save_raw_items(items, settings.raw_data_dir)
+            raw_data_path = save_raw_items(items, settings.raw_data_dir, state.run_id)
 
         # 把原始新闻写入 SQLite，并生成新闻级 embedding。
         with trace.span("save_raw_news_items"):
@@ -559,7 +559,7 @@ def run_daily_report(settings: Settings) -> Path:
         # 保存最终 Markdown 报告。
         with trace.span("save_report"):
             # save_report 会把 markdown 写入 reports 目录，并返回路径。
-            report_path = save_report(markdown, settings.report_dir)
+            report_path = save_report(markdown, settings.report_dir, state.run_id)
 
         # 把最终报告路径写入 run_state。
         state.report_path = str(report_path)

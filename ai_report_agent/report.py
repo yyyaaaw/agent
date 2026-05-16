@@ -81,7 +81,7 @@ def build_report_markdown(
 """
 
 
-def save_report(markdown: str, report_dir: Path) -> Path:
+def save_report(markdown: str, report_dir: Path, run_id: str = "") -> Path:
     """保存 Markdown 日报文件。
 
     参数：
@@ -91,8 +91,11 @@ def save_report(markdown: str, report_dir: Path) -> Path:
     返回：
     - Path: 实际保存的报告文件路径
     """
-    # 生成报告文件名，例如 reports/ai_hotspots_2026-05-08.md。
-    output_path = report_dir / f"ai_hotspots_{datetime.now().strftime('%Y-%m-%d')}.md"
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    # 生成报告文件名，例如 reports/ai_hotspots_2026-05-08_20260508_090000.md。
+    run_suffix = f"_{run_id}" if run_id else ""
+    output_path = report_dir / f"ai_hotspots_{datetime.now().strftime('%Y-%m-%d')}{run_suffix}.md"
 
     # write_text 把字符串写入文件。
     # encoding="utf-8" 确保中文正常保存。

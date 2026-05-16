@@ -777,9 +777,11 @@ def collect_news(
     return all_items, errors
 
 
-def save_raw_items(items: list[NewsItem], output_dir: Path) -> Path:
+def save_raw_items(items: list[NewsItem], output_dir: Path, run_id: str = "") -> Path:
     """保存原始采集结果，便于后续排查和复盘。"""
-    output_path = output_dir / f"ai_news_raw_{datetime.now().strftime('%Y-%m-%d')}.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    run_suffix = f"_{run_id}" if run_id else ""
+    output_path = output_dir / f"ai_news_raw_{datetime.now().strftime('%Y-%m-%d')}{run_suffix}.json"
     payload = [asdict(item) for item in items]
     output_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
