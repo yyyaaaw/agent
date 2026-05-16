@@ -89,6 +89,12 @@ C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --run-once
 C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --eval --eval-limit 5
 ```
 
+运行固定回归评估：
+
+```powershell
+C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --eval-regression
+```
+
 启动 MCP server：
 
 ```powershell
@@ -110,6 +116,7 @@ C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --mcp
 - `data/runs/`：每次运行的结构化状态。
 - `data/traces/`：每个阶段的耗时、状态和指标。
 - `data/eval/`：离线评估报告。
+- `evals/`：固定回归评估样例。
 - `data/agent.sqlite3`：本地长期运行数据库。
 - `data/source_health.json`：资讯源可用性记录。
 
@@ -126,6 +133,7 @@ C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --mcp
 - RAG 命中率：运行中是否检索到历史上下文。
 - 平均耗时、p95 耗时和最慢阶段：来自 trace span。
 - LLM 调用次数、token 用量、实际扣费和估算成本：优先用 DeepSeek 运行前后余额差额，失败时保留 usage * 单价估算。
+- 固定回归评估：`python catch_ai.py --eval-regression` 会使用 `evals/regression_cases.json` 检查去重、评分、critic 和修订校验等确定性行为。
 
 ## Safety
 
@@ -142,6 +150,7 @@ agent/
   ai_report_agent/          # 当前最新版 Agent 代码
   archive/versions/         # 历史版本快照
   docs/                     # 工程文档
+  evals/                    # 固定回归评估样例
   data/                     # 本地运行数据
   reports/                  # 生成的日报
   catch_ai.py               # CLI 入口

@@ -9,3 +9,4 @@
 - Added project documentation under `docs/`.
 - Expanded offline evaluation with KPI summaries, source health, LLM token usage, and cost estimation.
 - Added DeepSeek balance-delta cost tracking, with token-price estimation kept as a fallback.
+- Added fixed regression evals under `evals/` and a `--eval-regression` CLI command.

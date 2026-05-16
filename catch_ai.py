@@ -10,6 +10,9 @@ Common commands:
 - Evaluate recent runs:
   python catch_ai.py --eval
 
+- Run fixed regression evals:
+  python catch_ai.py --eval-regression
+
 - Keep the agent running on a daily schedule:
   python catch_ai.py --schedule 09:00
 
@@ -26,6 +29,7 @@ from ai_report_agent.config import load_settings
 from ai_report_agent.evaluation import run_evaluation
 from ai_report_agent.feedback_loop import run_feedback_session
 from ai_report_agent.mcp_server import run_mcp_server
+from ai_report_agent.regression_eval import run_regression_evaluation
 from ai_report_agent.scheduler import run_daily
 
 
@@ -62,6 +66,11 @@ def parse_args() -> argparse.Namespace:
         help="How many recent runs to evaluate when using --eval.",
     )
     parser.add_argument(
+        "--eval-regression",
+        action="store_true",
+        help="Run fixed regression cases for deterministic agent behavior checks.",
+    )
+    parser.add_argument(
         "--mcp",
         action="store_true",
         help="Start a stdio MCP server exposing the agent as tools.",
@@ -87,6 +96,11 @@ def main() -> None:
     if args.eval:
         eval_path = run_evaluation(settings, limit=args.eval_limit)
         print(f"Evaluation report generated: {eval_path}")
+        return
+
+    if args.eval_regression:
+        regression_path = run_regression_evaluation(settings)
+        print(f"Regression evaluation report generated: {regression_path}")
         return
 
     if args.run_once:

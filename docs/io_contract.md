@@ -10,6 +10,7 @@
 | `python catch_ai.py --schedule 09:00` | 按指定时间每日运行 | 同 `--run-once` |
 | `python catch_ai.py --feedback` | 对最近事件做反馈 | 更新 `feedback.json` 和 SQLite feedback 表 |
 | `python catch_ai.py --eval --eval-limit 5` | 评估最近 N 次运行 | `data/eval/eval_report_*.md` 和 `.json` |
+| `python catch_ai.py --eval-regression` | 运行固定回归评估样例 | `data/eval/regression_report_*.md` 和 `.json` |
 | `python catch_ai.py --mcp` | 启动 MCP server | stdio MCP tools |
 
 ## 配置输入
@@ -105,6 +106,14 @@ LLM 相关 span 还会记录本阶段的调用次数、prompt tokens、completio
 
 离线评估报告。用于回答“最近几次运行是否健康”。
 评估报告会汇总运行成功率、critic 通过率、幻觉代理率、来源成功率、RAG 命中率、事件压缩率、耗时、LLM 调用次数、token 用量、余额差额实际扣费和估算成本。
+
+### `evals/regression_cases.json`
+
+固定回归评估样例。用于回答“核心规则在代码或 prompt 修改后有没有退化”。当前样例覆盖去重、评分排序、本地 critic 硬规则、修订完整性校验和 critic FAIL 解析。
+
+### `data/eval/regression_report_*.md`
+
+固定回归评估报告。它不依赖真实 RSS、SQLite 历史数据或 DeepSeek 调用，适合在修改核心逻辑前后快速对比。
 
 ### `data/agent.sqlite3`
 
