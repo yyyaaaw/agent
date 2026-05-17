@@ -330,6 +330,14 @@ def chunk_items(items: list[NewsItem], batch_size: int) -> list[list[NewsItem]]:
     return [items[index : index + batch_size] for index in range(0, len(items), batch_size)]
 
 
+def chunk_events(events: list[NewsEvent], batch_size: int) -> list[list[NewsEvent]]:
+    """把事件切成多个批次，保证同一个事件不会被拆到不同 prompt。"""
+
+    if batch_size <= 0:
+        return [events]
+    return [events[index : index + batch_size] for index in range(0, len(events), batch_size)]
+
+
 def format_items(items: list[NewsItem]) -> str:
     """把资讯条目格式化为 prompt 中的原始材料文本。
 
@@ -355,6 +363,40 @@ def format_items(items: list[NewsItem]) -> str:
 
     # 每条资讯之间用两个换行分隔，让 prompt 更容易读。
     return "\n\n".join(lines)
+
+
+def format_event_batch(events: list[NewsEvent]) -> str:
+    """把事件批次格式化为 prompt 材料。"""
+
+    blocks: list[str] = []
+    for index, event in enumerate(events, start=1):
+        item_lines = [
+            f"- [{entry.item.source}｜{entry.item.category}] {entry.item.title} ({entry.score} 分)"
+            f"\n  发布时间：{entry.item.published or '未知'}"
+            f"\n  链接：{entry.item.link or '无'}"
+            f"\n  摘要：{entry.item.summary[:260] or '无'}"
+            for entry in event.scored_items[:8]
+        ]
+
+        blocks.append(
+            "\n".join(
+                [
+                    f"{index}. 事件标题：{event.title}",
+                    f"事件 ID：{event.event_id}",
+                    f"来源：{', '.join(event.sources) or '未知'}",
+                    f"类别：{', '.join(event.categories) or '未知'}",
+                    f"新闻数：{len(event.scored_items)}",
+                    f"最高分：{event.max_score}，平均分：{event.average_score:.1f}",
+                    f"代表链接：{event.representative_link or '无'}",
+                    "相关新闻：",
+                    *item_lines,
+                    "事件摘要材料：",
+                    event.summary or "无",
+                ]
+            )
+        )
+
+    return "\n\n".join(blocks)
 
 
 def format_profile(profile: UserProfile | None) -> str:
@@ -416,6 +458,34 @@ def build_batch_prompt(
 
 原始材料：
 {format_items(items)}
+"""
+
+
+def build_event_batch_prompt(
+    events: list[NewsEvent],
+    batch_index: int,
+    batch_count: int,
+    profile: UserProfile | None,
+) -> str:
+    """构造单批事件提炼 prompt。"""
+
+    return f"""你是一个专业的 AI 应用趋势研究助理。下面是第 {batch_index}/{batch_count} 批 AI 事件。
+
+用户偏好：
+{format_profile(profile)}
+
+请从这一批事件中提炼“值得进入日报候选池”的应用热点。
+
+要求：
+1. 以事件为最小分析单位，不要把同一事件里的多条相关新闻拆成多个热点。
+2. 优先关注新产品、新功能、工具、工作流、企业应用、创作者应用和商业落地。
+3. 论文、算法、底层技术只在它们明显影响产品能力或应用场景时保留。
+4. 最多输出 8 条候选热点。
+5. 每条包含：事件标题、关键来源、发生了什么、应用影响、建议关注动作、代表链接。
+6. 只基于给定事件材料，不要编造链接或事实。
+
+事件材料：
+{format_event_batch(events)}
 """
 
 
@@ -750,24 +820,32 @@ def analyze_news(
     """对新闻条目进行 AI 分析，生成日报正文。
 
     这里采用“两阶段分析”：
-    1. 先把所有资讯分批，让 DeepSeek 每批提炼候选热点。
+    1. 优先把事件分批，让 DeepSeek 每批提炼候选热点，避免同一事件跨批次拆开。
     2. 再把所有批次候选热点交给 DeepSeek，生成最终日报。
     3. Version 8 会把 LLM 整合后的事件结果和事件级历史上下文加入最终汇总 prompt。
     """
-    # 按 settings.batch_size 分批。
-    batches = chunk_items(items, settings.batch_size)
+    event_batches = chunk_events(events or [], settings.batch_size) if events else []
+    item_batches = chunk_items(items, settings.batch_size) if not event_batches else []
 
     # 保存每一批的分析结果。
     batch_summaries: list[str] = []
 
-    # 逐批调用 DeepSeek。
-    for index, batch in enumerate(batches, start=1):
-        # len(batches) 是总批次数。
+    # 优先逐批分析事件。这样同一个事件中的相关新闻会作为整体进入同一个 prompt。
+    for index, batch in enumerate(event_batches, start=1):
+        print(f"DeepSeek 正在分析第 {index}/{len(event_batches)} 批事件，共 {len(batch)} 个事件...")
+
+        prompt = build_event_batch_prompt(batch, index, len(event_batches), profile)
+        summary = call_deepseek(settings, prompt, f"event_batch_{index}_prompt")
+        batch_summaries.append(summary)
+
+    # 如果还没有事件结果，回退到旧的新闻级分批，保证流程仍然可用。
+    for index, batch in enumerate(item_batches, start=1):
+        # len(item_batches) 是总批次数。
         # len(batch) 是当前批次的资讯条数。
-        print(f"DeepSeek 正在分析第 {index}/{len(batches)} 批，共 {len(batch)} 条...")
+        print(f"DeepSeek 正在分析第 {index}/{len(item_batches)} 批新闻，共 {len(batch)} 条...")
 
         # 构造当前批次的 prompt。
-        prompt = build_batch_prompt(batch, index, len(batches), profile)
+        prompt = build_batch_prompt(batch, index, len(item_batches), profile)
 
         # 调用 DeepSeek，得到当前批次的候选热点摘要。
         summary = call_deepseek(settings, prompt, f"batch_{index}_prompt")

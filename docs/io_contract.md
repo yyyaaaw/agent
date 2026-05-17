@@ -30,7 +30,7 @@
 | `EMBEDDING_MODEL_PATH` | `models/bge-m3` | 本地 BGE 模型路径。 |
 | `MAX_ITEMS_PER_SOURCE` | `6` | 每个来源最多采集条数。 |
 | `MAX_ANALYSIS_ITEMS` | `40` | 最多进入 LLM 分析的新闻数。 |
-| `BATCH_SIZE` | `20` | LLM 分批处理大小。 |
+| `BATCH_SIZE` | `20` | LLM 分批处理大小；日报生成阶段优先按事件分批，同一事件不会跨批次拆开。 |
 | `REQUEST_TIMEOUT` | `120` | 网络请求超时秒数。 |
 | `DEEPSEEK_COST_MODE` | `balance_delta` | 成本统计模式，默认用 DeepSeek 运行前后余额差额。 |
 | `DEEPSEEK_COST_CURRENCY` | `CNY` | 余额差额使用的币种。 |

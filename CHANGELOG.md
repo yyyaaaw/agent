@@ -11,3 +11,4 @@
 - Added DeepSeek balance-delta cost tracking, with token-price estimation kept as a fallback.
 - Added fixed regression evals under `evals/` and a `--eval-regression` CLI command.
 - Added `run_id` to report and raw-news filenames to prevent same-day overwrite.
+- Switched report generation batching to event-first prompts so one event is not split across LLM batches.

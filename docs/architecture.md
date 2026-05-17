@@ -30,7 +30,7 @@ LLM 事件整合
   retrieve_related_events -> retrieve_related_history fallback
         ↓
 日报生成
-  analyze_news -> build_report_markdown
+  event-first analyze_news -> build_report_markdown
         ↓
 质量自查和修订
   critique_report -> revise_report -> validate_revision_report
@@ -71,4 +71,3 @@ LLM 事件整合
 - 采用标准库 HTTP 和 XML 解析，减少基础链路依赖。
 - 把 prompt 保存到 `data/debug/`，方便定位模型输入问题。
 - 把 critic 和 evaluation 拆开：critic 评单次报告，evaluation 看多次运行趋势。
-
