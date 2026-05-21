@@ -132,6 +132,143 @@
       }
     },
     {
+      "id": "event_taxonomy_merges_domestic_launch_aliases",
+      "type": "event_taxonomy_pair",
+      "description": "Chinese launch aliases such as 发布 and 上线 should normalize to the same action and merge the same Qwen event.",
+      "items": [
+        {
+          "id": "qwen_official",
+          "text": "阿里云发布 Qwen3 通义千问新模型，面向企业客户开放 API。",
+          "embedding": [1.0, 0.0, 0.0]
+        },
+        {
+          "id": "qwen_media",
+          "text": "通义千问 Qwen3 正式上线，阿里称模型推理能力升级。",
+          "embedding": [0.98, 0.08, 0.0]
+        },
+        {
+          "id": "ernie_upgrade",
+          "text": "百度文心 ERNIE 4.5 完成升级，新增企业智能体工具。",
+          "embedding": [0.0, 1.0, 0.0]
+        }
+      ],
+      "pairs": [
+        {
+          "left": "qwen_official",
+          "right": "qwen_media"
+        },
+        {
+          "left": "qwen_official",
+          "right": "ernie_upgrade"
+        }
+      ],
+      "expect": {
+        "items": {
+          "qwen_official": {
+            "entities": ["Alibaba"],
+            "products": ["Qwen"],
+            "actions": ["launch"]
+          },
+          "qwen_media": {
+            "entities": ["Alibaba"],
+            "products": ["Qwen"],
+            "actions": ["launch"]
+          },
+          "ernie_upgrade": {
+            "entities": ["Baidu"],
+            "products": ["ERNIE"],
+            "actions": ["upgrade"]
+          }
+        },
+        "pairs": {
+          "qwen_official|qwen_media": true,
+          "qwen_official|ernie_upgrade": false
+        }
+      }
+    },
+    {
+      "id": "event_taxonomy_handles_similar_action_words",
+      "type": "event_taxonomy_pair",
+      "description": "Similar actions with different wording, such as 合作 and 集成, should merge when entity and product evidence match.",
+      "items": [
+        {
+          "id": "minimax_partner",
+          "text": "腾讯与 MiniMax 达成合作，Hailuo AI 能力将进入企业微信场景。",
+          "embedding": [1.0, 0.0, 0.0]
+        },
+        {
+          "id": "minimax_integration",
+          "text": "企业微信集成 MiniMax Hailuo AI 能力，面向客服和办公工作流开放。",
+          "embedding": [0.96, 0.1, 0.0]
+        }
+      ],
+      "pairs": [
+        {
+          "left": "minimax_partner",
+          "right": "minimax_integration"
+        }
+      ],
+      "expect": {
+        "items": {
+          "minimax_partner": {
+            "entities": ["Tencent", "MiniMax"],
+            "products": ["Hailuo AI"],
+            "actions": ["partnership"]
+          },
+          "minimax_integration": {
+            "entities": ["MiniMax"],
+            "products": ["Hailuo AI"],
+            "actions": ["integration"]
+          }
+        },
+        "pairs": {
+          "minimax_partner|minimax_integration": true
+        }
+      }
+    },
+    {
+      "id": "taxonomy_builder_generates_safe_aliases_and_review_hints",
+      "type": "taxonomy_builder",
+      "description": "Taxonomy builder should auto-generate high-confidence product/action aliases and keep ambiguous action terms for manual review.",
+      "items": [
+        {
+          "id": "qwen4_gray_release",
+          "source": "机器之心",
+          "category": "产品与模型",
+          "title": "阿里云灰度开放 Qwen4 模型，通义千问家族面向开发者测试",
+          "link": "https://example.cn/qwen4",
+          "published": "2026-05-21",
+          "summary": "Qwen4 暂未全量发布，但已经开放体验。"
+        },
+        {
+          "id": "hailyou_layout",
+          "source": "36氪",
+          "category": "应用与产品",
+          "title": "腾讯布局 Hailuo AI 企业工作流场景",
+          "link": "https://example.cn/hailuo-layout",
+          "published": "2026-05-21",
+          "summary": "报道提到 Hailuo AI 将进入更多办公场景，但布局一词需要人工确认具体动作。"
+        }
+      ],
+      "expect": {
+        "min_auto_product_aliases": 1,
+        "min_auto_action_aliases": 1,
+        "generated_products": {
+          "qwen4": {
+            "canonical": "Qwen",
+            "alias": "Qwen4"
+          }
+        },
+        "generated_actions": {
+          "gray_release": {
+            "action": "launch",
+            "alias": "灰度开放"
+          }
+        },
+        "review_aliases": ["布局"]
+      }
+    },
+    {
       "id": "critic_flags_missing_report_metadata",
       "type": "local_critic",
       "description": "A report without standard date metadata should trigger local critic issues.",
@@ -153,6 +290,28 @@
       "revised_report": "收到，我会根据这些意见重新整理一份更完整的日报。",
       "expect": {
         "accepted": false
+      }
+    },
+    {
+      "id": "section_revision_rejects_full_report_output",
+      "type": "section_revision_validation",
+      "description": "A section-level revision must reject a model response that tries to output a whole report.",
+      "section_title": "今日摘要",
+      "original_section": "## 今日摘要\n\n- OpenAI 发布新的企业功能，来源显示其面向客服和办公工作流。\n- 国内模型厂商上线新工具，强调企业落地。\n",
+      "revised_section": "# AI 热点日报 - 2026-05-16\n\n## 今日摘要\n\n这是一整篇报告，不是单个区块。\n",
+      "expect": {
+        "accepted": false
+      }
+    },
+    {
+      "id": "revision_plan_parses_target_sections",
+      "type": "revision_plan",
+      "description": "Structured revision plans should only accept existing report sections.",
+      "report": "# AI 热点日报 - 2026-05-16\n\n生成时间：2026-05-16 09:00:00\n\n## 今日摘要\n\n原摘要。\n\n## 风险与监管\n\n原风险。\n\n## 参考来源\n\n- https://example.com/source\n\n## 采集状态\n\n采集失败：\n- 无\n",
+      "plan_response": "{\"global_instructions\":[\"删除无来源判断\"],\"sections\":[{\"section_title\":\"今日摘要\",\"instructions\":[\"补充应用影响\"]},{\"section_title\":\"不存在区块\",\"instructions\":[\"这条应被忽略\"]}]}",
+      "expect": {
+        "plan_valid": true,
+        "section_titles": ["今日摘要"]
       }
     },
     {

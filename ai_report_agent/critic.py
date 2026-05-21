@@ -7,8 +7,14 @@
 
 from __future__ import annotations
 
+# json 用来解析修订计划的结构化输出。
+import json
+
 # re 用来更稳地识别“结论：FAIL/PASS”和报告里的日期。
 import re
+
+# dataclass 用来表达报告区块和修订工作流结果。
+from dataclasses import dataclass, field
 
 # date 用来获取当天日期，并和报告标题、生成时间做硬性比对。
 from datetime import date, datetime
@@ -20,6 +26,41 @@ from ai_report_agent.deepseek_client import call_deepseek
 
 # UserProfile 提供用户偏好，用来构造检查和修订标准。
 from ai_report_agent.profile import UserProfile
+
+
+@dataclass(frozen=True)
+class ReportSection:
+    """Markdown 日报中的一个可修订区块。"""
+
+    title: str
+    content: str
+    index: int
+
+
+@dataclass(frozen=True)
+class RevisionPlan:
+    """结构化修订计划。"""
+
+    global_instructions: list[str] = field(default_factory=list)
+    section_instructions: dict[str, list[str]] = field(default_factory=dict)
+    rejected_reason: str = ""
+
+    @property
+    def valid(self) -> bool:
+        """计划是否包含可执行的区块修订。"""
+
+        return not self.rejected_reason and bool(self.section_instructions)
+
+
+@dataclass(frozen=True)
+class RevisionWorkflowResult:
+    """区块修订工作流结果。"""
+
+    markdown: str
+    plan_valid: bool
+    plan_reason: str
+    revised_sections: list[str] = field(default_factory=list)
+    rejected_sections: list[str] = field(default_factory=list)
 
 
 def build_critic_prompt(report: str, profile: UserProfile) -> str:
@@ -98,6 +139,97 @@ def build_revision_prompt(report: str, critique: str, profile: UserProfile) -> s
 """
 
 
+def build_revision_plan_prompt(report: str, critique: str, profile: UserProfile) -> str:
+    """构造“先生成修订计划”的 prompt。"""
+
+    today = date.today().strftime("%Y-%m-%d")
+    section_titles = ", ".join(section.title for section in split_report_sections(report) if section.title != "__metadata__")
+
+    return f"""请根据质量检查意见，为下面这份 AI 应用日报制定“局部修订计划”。
+
+今天日期：{today}
+
+用户偏好：
+{profile.report_style}
+
+可修订区块：
+{section_titles or "未识别到二级标题区块"}
+
+质量检查意见：
+{critique}
+
+计划要求：
+1. 只输出 JSON，不要输出 Markdown 或解释文字。
+2. 不要要求整篇重写；只能指定需要修改的区块。
+3. “参考来源”“采集状态”默认保留，除非质量检查明确指出它们有问题。
+4. 每个 section_title 必须来自“可修订区块”列表。
+5. instructions 要具体说明要删除、补充、改写或核对什么。
+6. 不允许新增没有来源支撑的事实。
+7. 如果只有标题日期或生成时间错误，写入 global_instructions 即可，sections 可以为空。
+
+JSON 格式：
+{{
+  "global_instructions": ["全局修订要求，例如修正日期、删掉无来源判断"],
+  "sections": [
+    {{
+      "section_title": "今日摘要",
+      "instructions": ["具体修订动作 1", "具体修订动作 2"]
+    }}
+  ]
+}}
+
+待修订日报：
+{report}
+"""
+
+
+def build_section_revision_prompt(
+    section: ReportSection,
+    critique: str,
+    global_instructions: list[str],
+    section_instructions: list[str],
+    profile: UserProfile,
+) -> str:
+    """构造单个区块的修订 prompt。"""
+
+    today = date.today().strftime("%Y-%m-%d")
+
+    return f"""请只修订下面这个 Markdown 区块，不要输出整篇日报。
+
+今天日期：{today}
+
+用户偏好：
+{profile.report_style}
+
+质量检查意见：
+{critique}
+
+全局修订要求：
+{format_instruction_list(global_instructions)}
+
+本区块修订要求：
+{format_instruction_list(section_instructions)}
+
+严格输出要求：
+1. 只输出修订后的这个区块本身。
+2. 必须保留原区块标题：## {section.title}
+3. 不要输出一级标题，不要输出其他区块，不要输出“收到/我将/下面是”等过渡语。
+4. 不新增没有来源支撑的事实。
+5. 如果本区块无需改动，请原样返回本区块。
+
+原区块：
+{section.content}
+"""
+
+
+def format_instruction_list(instructions: list[str]) -> str:
+    """把修订要求列表格式化为 prompt 文本。"""
+
+    if not instructions:
+        return "- 无"
+    return "\n".join(f"- {instruction}" for instruction in instructions)
+
+
 def validate_revision_report(original_report: str, revised_report: str) -> tuple[bool, str]:
     """校验修订版是否足够完整，避免短输出覆盖完整日报。
 
@@ -130,12 +262,47 @@ def validate_revision_report(original_report: str, revised_report: str) -> tuple
     if section_count < 3:
         return False, f"修订版二级标题过少：{section_count} 个，至少需要 3 个。"
 
+    required_sections = ["## 今日摘要", "## 参考来源", "## 采集状态"]
+    missing_sections = [section for section in required_sections if section not in revised]
+    if missing_sections:
+        return False, f"修订版缺少必要区块：{', '.join(missing_sections)}。"
+
     # 如果模型只返回“收到、正在生成”一类中间话术，不允许覆盖报告。
-    transitional_phrases = ["收到", "现在将", "下面开始", "我将", "正在整理", "生成一份"]
-    if len(revised) < 1500 and any(phrase in revised for phrase in transitional_phrases):
+    transitional_phrases = ["收到", "现在将", "下面开始", "我将", "正在整理", "生成一份", "我会根据"]
+    if len(revised) < 2000 and any(phrase in revised for phrase in transitional_phrases):
         return False, "修订版像模型过渡话术，而不是完整日报。"
 
     return True, "修订版通过完整性校验。"
+
+
+def validate_section_revision(
+    original_section: ReportSection,
+    revised_section: str,
+) -> tuple[bool, str]:
+    """校验单区块修订，避免模型输出整篇报告或过短话术。"""
+
+    revised = (revised_section or "").strip()
+    original = original_section.content.strip()
+
+    if not revised:
+        return False, "区块修订为空。"
+
+    if revised.lstrip().startswith("# "):
+        return False, "区块修订返回了整篇日报一级标题。"
+
+    expected_heading = f"## {original_section.title}"
+    if not revised.lstrip().startswith(expected_heading):
+        return False, f"区块修订没有保留标题：{expected_heading}。"
+
+    min_length = max(80, int(len(original) * 0.35))
+    if len(revised) < min_length:
+        return False, f"区块修订过短：{len(revised)} 字符，最低要求 {min_length} 字符。"
+
+    transitional_phrases = ["收到", "我将", "下面是", "下面开始", "正在整理", "我会根据"]
+    if len(revised) < 500 and any(phrase in revised for phrase in transitional_phrases):
+        return False, "区块修订像模型过渡话术。"
+
+    return True, "区块修订通过校验。"
 
 
 def local_critic_issues(report: str, today: date | None = None) -> list[str]:
@@ -187,6 +354,151 @@ def parse_iso_date(value: str) -> date | None:
         return datetime.strptime(value, "%Y-%m-%d").date()
     except ValueError:
         return None
+
+
+def repair_report_metadata(report: str, today: date | None = None) -> str:
+    """用本地确定性规则修正日报标题日期和生成时间日期。"""
+
+    today = today or date.today()
+    today_text = today.isoformat()
+
+    repaired = re.sub(
+        r"^#\s*AI\s*热点日报\s*-\s*\d{4}-\d{2}-\d{2}",
+        f"# AI 热点日报 - {today_text}",
+        report,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    repaired = re.sub(
+        r"(生成时间\s*[:：]\s*)\d{4}-\d{2}-\d{2}",
+        rf"\g<1>{today_text}",
+        repaired,
+        count=1,
+    )
+    return repaired
+
+
+def split_report_sections(report: str) -> list[ReportSection]:
+    """按二级标题拆分 Markdown 日报。"""
+
+    matches = list(re.finditer(r"^##\s+(.+?)\s*$", report, flags=re.MULTILINE))
+    sections: list[ReportSection] = []
+
+    if not matches:
+        return [ReportSection(title="__metadata__", content=report, index=0)]
+
+    if matches[0].start() > 0:
+        sections.append(
+            ReportSection(
+                title="__metadata__",
+                content=report[: matches[0].start()].rstrip(),
+                index=0,
+            )
+        )
+
+    for index, match in enumerate(matches, start=1):
+        end = matches[index].start() if index < len(matches) else len(report)
+        sections.append(
+            ReportSection(
+                title=match.group(1).strip(),
+                content=report[match.start() : end].strip(),
+                index=index,
+            )
+        )
+
+    return sections
+
+
+def merge_report_sections(sections: list[ReportSection]) -> str:
+    """把区块重新拼回完整 Markdown。"""
+
+    return "\n\n".join(section.content.strip() for section in sections if section.content.strip()).strip() + "\n"
+
+
+def parse_revision_plan_response(response: str, report: str) -> RevisionPlan:
+    """解析并校验 LLM 生成的修订计划。"""
+
+    payload = extract_json_object(response)
+    if not payload:
+        return RevisionPlan(rejected_reason="修订计划不是可解析 JSON。")
+
+    sections = split_report_sections(report)
+    valid_titles = {
+        normalize_section_title(section.title): section.title
+        for section in sections
+        if section.title != "__metadata__"
+    }
+
+    section_instructions: dict[str, list[str]] = {}
+    raw_sections = payload.get("sections", [])
+    if isinstance(raw_sections, list):
+        for raw_section in raw_sections:
+            if not isinstance(raw_section, dict):
+                continue
+            raw_title = str(raw_section.get("section_title", "")).strip()
+            title_key = normalize_section_title(raw_title)
+            matched_title = valid_titles.get(title_key)
+            if not matched_title:
+                continue
+            instructions = read_instruction_list(raw_section.get("instructions"))
+            if instructions:
+                section_instructions[matched_title] = instructions
+
+    global_instructions = read_instruction_list(payload.get("global_instructions"))
+    if not section_instructions and global_instructions:
+        return RevisionPlan(
+            global_instructions=global_instructions,
+            section_instructions={},
+            rejected_reason="修订计划只有全局要求，没有需要 LLM 局部改写的区块。",
+        )
+
+    if not section_instructions:
+        return RevisionPlan(rejected_reason="修订计划没有可执行区块。")
+
+    return RevisionPlan(
+        global_instructions=global_instructions,
+        section_instructions=section_instructions,
+    )
+
+
+def extract_json_object(text: str) -> dict[str, object]:
+    """从模型输出里提取 JSON 对象。"""
+
+    stripped = (text or "").strip()
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`")
+        if stripped.lower().startswith("json"):
+            stripped = stripped[4:].strip()
+
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start < 0 or end < start:
+        return {}
+
+    try:
+        payload = json.loads(stripped[start : end + 1])
+    except json.JSONDecodeError:
+        return {}
+
+    if not isinstance(payload, dict):
+        return {}
+    return payload
+
+
+def read_instruction_list(value: object) -> list[str]:
+    """读取修订要求列表。"""
+
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def normalize_section_title(value: str) -> str:
+    """归一化区块标题，便于匹配修订计划。"""
+
+    return re.sub(r"\s+", "", value.strip().lower().strip("#：: "))
 
 
 def format_local_critique(issues: list[str]) -> str:
@@ -266,8 +578,89 @@ def should_revise(critique: str) -> bool:
 
 def revise_report(settings: Settings, report: str, critique: str, profile: UserProfile) -> str:
     """调用 DeepSeek 根据检查意见修订报告。"""
-    # 根据原报告、自查意见和用户偏好构造修订 prompt。
-    prompt = build_revision_prompt(report, critique, profile)
+    return revise_report_with_plan(settings, report, critique, profile).markdown
 
-    # 调用 DeepSeek 返回修订后的 Markdown 报告。
-    return call_deepseek(settings, prompt, "revision_prompt")
+
+def revise_report_with_plan(
+    settings: Settings,
+    report: str,
+    critique: str,
+    profile: UserProfile,
+) -> RevisionWorkflowResult:
+    """使用“修订计划 + 区块修订”的稳定修订链路。"""
+
+    original_report = report
+    repaired_report = repair_report_metadata(report)
+
+    plan_prompt = build_revision_plan_prompt(repaired_report, critique, profile)
+    plan_response = call_deepseek(settings, plan_prompt, "revision_plan_prompt")
+    plan = parse_revision_plan_response(plan_response, repaired_report)
+
+    if not plan.valid:
+        return RevisionWorkflowResult(
+            markdown=repaired_report,
+            plan_valid=False,
+            plan_reason=plan.rejected_reason or "修订计划无效。",
+        )
+
+    sections = split_report_sections(repaired_report)
+    revised_sections: list[str] = []
+    rejected_sections: list[str] = []
+    updated_sections: list[ReportSection] = []
+
+    for section in sections:
+        instructions = plan.section_instructions.get(section.title)
+        if not instructions:
+            updated_sections.append(section)
+            continue
+
+        prompt = build_section_revision_prompt(
+            section=section,
+            critique=critique,
+            global_instructions=plan.global_instructions,
+            section_instructions=instructions,
+            profile=profile,
+        )
+        debug_name = f"revision_section_{safe_debug_name(section.title)}_prompt"
+        revised_content = call_deepseek(settings, prompt, debug_name)
+        section_ok, section_reason = validate_section_revision(section, revised_content)
+        if section_ok:
+            updated_sections.append(
+                ReportSection(
+                    title=section.title,
+                    content=revised_content.strip(),
+                    index=section.index,
+                )
+            )
+            revised_sections.append(section.title)
+        else:
+            updated_sections.append(section)
+            rejected_sections.append(f"{section.title}: {section_reason}")
+
+    merged_report = merge_report_sections(updated_sections)
+    merged_report = repair_report_metadata(merged_report)
+
+    # 如果所有区块修订都被拒绝，保留确定性元信息修复后的原报告。
+    if not revised_sections:
+        return RevisionWorkflowResult(
+            markdown=repaired_report,
+            plan_valid=False,
+            plan_reason="所有区块修订都被本地校验拒绝。",
+            revised_sections=revised_sections,
+            rejected_sections=rejected_sections,
+        )
+
+    return RevisionWorkflowResult(
+        markdown=merged_report,
+        plan_valid=True,
+        plan_reason="修订计划已执行。",
+        revised_sections=revised_sections,
+        rejected_sections=rejected_sections,
+    )
+
+
+def safe_debug_name(value: str) -> str:
+    """把区块标题转换成适合调试文件名的短标识。"""
+
+    cleaned = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]+", "_", value).strip("_")
+    return cleaned[:40] or "section"

@@ -43,6 +43,9 @@ from ai_report_agent.scorer import ScoredNewsItem
 # NewsItem 是 RSS 采集阶段产出的标准新闻结构。
 from ai_report_agent.sources import NewsItem
 
+# 事件词典负责把公司、产品和动作别名归一化为稳定 ID。
+from ai_report_agent.taxonomy import get_event_taxonomy
+
 
 # 常见 AI 公司、实验室、产品和模型实体。
 # 这不是为了做完美 NER，而是给事件聚类提供“同一主体”的强信号。
@@ -117,6 +120,18 @@ ACTION_KEYWORDS = {
         "enterprise", "customer", "customers", "case", "workflow", "productivity",
         "service", "agent", "agents", "应用", "案例", "企业", "客服", "工作流",
     ],
+}
+
+LEGACY_ACTION_IDS = {
+    "发布": "launch",
+    "开源": "open_source",
+    "定价": "pricing",
+    "安全": "safety_security",
+    "融资交易": "funding",
+    "合作": "partnership",
+    "监管伦理": "regulation",
+    "研究评测": "research_evaluation",
+    "应用案例": "application_case",
 }
 
 
@@ -204,6 +219,9 @@ class EventFeatures:
     # 抽取到的公司、产品、模型等实体。
     entities: set[str]
 
+    # 抽取到的产品和模型实体。单独保留是因为它们比公司名更能限定事件边界。
+    products: set[str]
+
     # 抽取到的动作类型，例如发布、定价、安全。
     actions: set[str]
 
@@ -258,6 +276,32 @@ def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
 
 
+def taxonomy_stop_words() -> set[str]:
+    """返回代码内置和外置词典合并后的停用词。"""
+
+    return STOP_WORDS | get_event_taxonomy().stop_words
+
+
+def taxonomy_weak_actions() -> set[str]:
+    """返回标准化后的弱动作集合。"""
+
+    legacy_weak_actions = {LEGACY_ACTION_IDS.get(action, action) for action in WEAK_ACTIONS}
+    return legacy_weak_actions | get_event_taxonomy().weak_actions
+
+
+def taxonomy_hub_entities() -> set[str]:
+    """返回容易产生误合并的高频主体集合。"""
+
+    return HUB_ENTITIES | get_event_taxonomy().hub_entities
+
+
+def format_action_names(actions: set[str] | list[str]) -> list[str]:
+    """把动作 ID 转成用于解释原因的可读名称。"""
+
+    taxonomy = get_event_taxonomy()
+    return [taxonomy.action_label(action) for action in sorted(actions)]
+
+
 def extract_entities(text: str) -> set[str]:
     """从文本中抽取实体。
 
@@ -265,7 +309,8 @@ def extract_entities(text: str) -> set[str]:
     它比纯 embedding 更适合工程场景，因为事件合并最需要知道“同一个主体是谁”。
     """
     normalized = normalize_text(text)
-    entities: set[str] = set()
+    taxonomy = get_event_taxonomy()
+    entities: set[str] = set(taxonomy.match_entities(text))
 
     # 先用已知词典抽取稳定实体。
     for pattern, canonical_name in KNOWN_ENTITY_PATTERNS.items():
@@ -292,7 +337,7 @@ def extract_entities(text: str) -> set[str]:
         words = cleaned.split()
         if not words:
             continue
-        if cleaned.lower() in STOP_WORDS:
+        if cleaned.lower() in taxonomy_stop_words():
             continue
         if words[0].lower() in {"the", "how", "what", "why", "as", "from"}:
             continue
@@ -304,14 +349,32 @@ def extract_entities(text: str) -> set[str]:
     return entities
 
 
+def extract_products(text: str) -> set[str]:
+    """从文本中抽取产品、模型和框架名称。"""
+
+    normalized = normalize_text(text)
+    products = set(get_event_taxonomy().match_products(text))
+
+    # 抽取 GPT-5.5、Claude-3.7、Qwen3 这类可能尚未进入词典的新模型名。
+    model_patterns = [
+        r"\b(?:gpt|claude|llama|gemini|grok|mistral)[-\s]?\d[\w.-]*\b",
+        r"\b(?:qwen|ernie|glm|hunyuan|deepseek|baichuan|minicpm)[-\s]?\d[\w.-]*\b",
+    ]
+    for pattern in model_patterns:
+        for match in re.findall(pattern, normalized):
+            products.add(match.upper().replace(" ", "-"))
+
+    return products
+
+
 def extract_actions(text: str) -> set[str]:
     """从文本中抽取新闻动作类型。"""
     normalized = normalize_text(text)
-    actions: set[str] = set()
+    actions: set[str] = set(get_event_taxonomy().match_actions(text))
 
     for action_name, keywords in ACTION_KEYWORDS.items():
         if any(keyword in normalized for keyword in keywords):
-            actions.add(action_name)
+            actions.add(LEGACY_ACTION_IDS.get(action_name, action_name))
 
     return actions
 
@@ -325,13 +388,13 @@ def extract_keywords(text: str) -> set[str]:
         word.strip(".-")
         for word in words
         if word.strip(".-")
-        and word.strip(".-") not in STOP_WORDS
+        and word.strip(".-") not in taxonomy_stop_words()
         and len(word.strip(".-")) >= 3
     }
 
     # 保留部分中文连续片段。当前 RSS 多数是英文标题，这里只是兼容中文来源。
     for match in re.findall(r"[\u4e00-\u9fff]{2,}", text):
-        if len(match) <= 12:
+        if len(match) <= 12 and match not in taxonomy_stop_words():
             keywords.add(match)
 
     return keywords
@@ -347,11 +410,14 @@ def build_features(entry: ScoredNewsItem) -> EventFeatures:
     # embedding 只使用标题和摘要，不加入来源名或分类。
     # 原因是来源名和分类会让同一站点/同一栏目下的不同新闻看起来过于相似。
     embedding_text = f"{entry.item.title} {entry.item.summary}"
+    entities = extract_entities(signal_text)
+    products = extract_products(signal_text)
 
     return EventFeatures(
         text=signal_text,
         embedding=embed_text(embedding_text),
-        entities=extract_entities(signal_text),
+        entities=entities | products,
+        products=products,
         actions=extract_actions(signal_text),
         keywords=extract_keywords(signal_text),
     )
@@ -382,19 +448,23 @@ def pair_cluster_score(left: EventFeatures, right: EventFeatures) -> tuple[float
     """
     embedding_similarity = cosine_similarity(left.embedding, right.embedding)
     entity_overlap = jaccard(left.entities, right.entities)
-    action_overlap = jaccard(left.actions, right.actions)
+    product_overlap = jaccard(left.products, right.products)
+    action_overlap = get_event_taxonomy().action_similarity(left.actions, right.actions)
     keyword_overlap = jaccard(left.keywords, right.keywords)
 
     score = (
-        0.52 * embedding_similarity
-        + 0.24 * entity_overlap
-        + 0.14 * action_overlap
-        + 0.10 * keyword_overlap
+        0.46 * embedding_similarity
+        + 0.20 * entity_overlap
+        + 0.18 * product_overlap
+        + 0.10 * action_overlap
+        + 0.06 * keyword_overlap
     )
 
     shared_entities = sorted(left.entities & right.entities)
+    shared_products = sorted(left.products & right.products)
     shared_actions = sorted(left.actions & right.actions)
     shared_keywords = sorted(left.keywords & right.keywords)
+    similar_action_pairs = get_event_taxonomy().similar_action_pairs(left.actions, right.actions)
 
     reason_parts = [
         f"混合分={score:.2f}",
@@ -402,8 +472,16 @@ def pair_cluster_score(left: EventFeatures, right: EventFeatures) -> tuple[float
     ]
     if shared_entities:
         reason_parts.append(f"共同实体={', '.join(shared_entities[:4])}")
+    if shared_products:
+        reason_parts.append(f"共同产品={', '.join(shared_products[:4])}")
     if shared_actions:
-        reason_parts.append(f"共同动作={', '.join(shared_actions[:3])}")
+        reason_parts.append(f"共同动作={', '.join(format_action_names(shared_actions[:3]))}")
+    elif similar_action_pairs:
+        pair_labels = [
+            f"{get_event_taxonomy().action_label(left_action)}~{get_event_taxonomy().action_label(right_action)}"
+            for left_action, right_action, _score in similar_action_pairs[:3]
+        ]
+        reason_parts.append(f"相近动作={', '.join(pair_labels)}")
     if shared_keywords:
         reason_parts.append(f"共同关键词={', '.join(shared_keywords[:5])}")
 
@@ -429,24 +507,35 @@ def should_merge_pair(
     score, reason = pair_cluster_score(left, right)
     embedding_similarity = cosine_similarity(left.embedding, right.embedding)
     shared_entities = left.entities & right.entities
+    shared_products = left.products & right.products
     shared_actions = left.actions & right.actions
     shared_keywords = left.keywords & right.keywords
+    taxonomy = get_event_taxonomy()
+    action_similarity = taxonomy.action_similarity(left.actions, right.actions)
+    weak_actions = taxonomy_weak_actions()
+    product_markers = taxonomy.product_markers or {"gpt", "claude", "gemini", "codex", "rubin", "llama", "grok"}
 
     product_like_entities = {
         entity
-        for entity in shared_entities
-        if any(marker in entity.lower() for marker in ("gpt", "claude", "gemini", "codex", "rubin", "llama", "grok"))
+        for entity in shared_entities | shared_products
+        if entity in shared_products
+        or any(marker in entity.lower() for marker in product_markers)
     }
 
     # 如果共同实体只有高频公司名，必须要求额外证据。
     # 这条规则要放在“高语义相似”之前，因为同一来源同一栏目下的公司新闻可能语义也偏高。
     hub_only_overlap = bool(shared_entities) and not product_like_entities and all(
-        entity in HUB_ENTITIES or any(entity.startswith(f"{hub} ") for hub in HUB_ENTITIES)
+        entity in taxonomy_hub_entities() or any(entity.startswith(f"{hub} ") for hub in taxonomy_hub_entities())
         for entity in shared_entities
     )
-    strong_shared_actions = shared_actions - WEAK_ACTIONS
+    strong_shared_actions = shared_actions - weak_actions
+    has_similar_strong_action = (
+        action_similarity >= 0.72
+        and not left.actions <= weak_actions
+        and not right.actions <= weak_actions
+    )
     if hub_only_overlap:
-        if strong_shared_actions and embedding_similarity >= 0.55 and len(shared_keywords) >= 2:
+        if (strong_shared_actions or has_similar_strong_action) and embedding_similarity >= 0.55 and len(shared_keywords) >= 2:
             return True, f"高频主体但有强动作和事实关键词；{reason}"
         if embedding_similarity >= 0.84 and len(shared_keywords) >= 3:
             return True, f"高频主体但语义和事实词都高度一致；{reason}"
@@ -459,9 +548,10 @@ def should_merge_pair(
     # 同一产品/模型实体是强信号。这里不要求动作完全一致，因为官方发布、
     # 媒体价格分析、安全解读可能动作标签不同，但仍围绕同一核心产品进展。
     if product_like_entities and (
-        embedding_similarity >= 0.62
-        or strong_shared_actions
-        or len(shared_keywords) >= 2
+        embedding_similarity >= 0.50
+        or shared_actions
+        or action_similarity >= 0.65
+        or len(shared_keywords) >= 1
     ):
         return True, f"共同产品/模型实体；{reason}"
 
@@ -470,13 +560,25 @@ def should_merge_pair(
     if shared_entities and strong_shared_actions and embedding_similarity >= 0.38:
         return True, f"共同实体和动作；{reason}"
 
+    # 动作词不同但语义相近时，例如“合作”和“接入/集成”，只要主体和事实词也对得上，
+    # 就允许进入同一候选事件，避免因为用词不同把同一进展拆碎。
+    if shared_entities and has_similar_strong_action and embedding_similarity >= 0.45 and len(shared_keywords) >= 1:
+        return True, f"共同实体和相近动作；{reason}"
+
     # 如果只有弱动作重叠，需要额外满足更高语义相似度或更多事实关键词重叠。
     if shared_entities and shared_actions and embedding_similarity >= 0.58 and len(shared_keywords) >= 2:
         return True, f"共同实体、弱动作和事实关键词；{reason}"
 
     # 只有“同一公司 + 弱动作 + 极少关键词”时，不允许走混合分兜底。
     # 这是为了避免 Microsoft、NVIDIA、OpenAI 这类高频主体把不同主题的多篇新闻吸成一团。
-    if shared_entities and shared_actions and not strong_shared_actions and len(shared_keywords) < 2 and embedding_similarity < 0.72:
+    if (
+        shared_entities
+        and (shared_actions or action_similarity >= 0.65)
+        and not strong_shared_actions
+        and not has_similar_strong_action
+        and len(shared_keywords) < 2
+        and embedding_similarity < 0.72
+    ):
         return False, f"仅共享主体和弱动作，证据不足；{reason}"
 
     # 标题关键词高度重叠时，即使没有抽到实体，也可能是同一事件的复述。
@@ -484,7 +586,7 @@ def should_merge_pair(
         return True, f"标题事实词高度重叠；{reason}"
 
     # 混合分超过阈值时仍要求至少有一种可解释重叠，避免纯泛化语义误合并。
-    if score >= hybrid_threshold and (shared_entities or shared_actions or len(shared_keywords) >= 2):
+    if score >= hybrid_threshold and (shared_entities or shared_actions or action_similarity >= 0.65 or len(shared_keywords) >= 2):
         return True, f"混合特征达到阈值；{reason}"
 
     return False, reason

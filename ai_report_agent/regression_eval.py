@@ -3,17 +3,37 @@
 from __future__ import annotations
 
 import json
+import shutil
+import tempfile
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from ai_report_agent.config import Settings, ROOT_DIR
-from ai_report_agent.critic import local_critic_issues, should_revise, validate_revision_report
+from ai_report_agent.critic import (
+    ReportSection,
+    local_critic_issues,
+    parse_revision_plan_response,
+    should_revise,
+    split_report_sections,
+    validate_revision_report,
+    validate_section_revision,
+)
 from ai_report_agent.deduplicator import deduplicate_items
+from ai_report_agent.events import (
+    EventFeatures,
+    extract_actions,
+    extract_entities,
+    extract_keywords,
+    extract_products,
+    should_merge_pair,
+)
 from ai_report_agent.profile import DEFAULT_PROFILE, UserProfile
 from ai_report_agent.scorer import score_items
 from ai_report_agent.sources import NewsItem
+from ai_report_agent.taxonomy import DEFAULT_TAXONOMY_DIR, read_json
+from ai_report_agent.taxonomy_builder import update_event_taxonomy_from_items
 
 
 DEFAULT_CASES_PATH = ROOT_DIR / "evals" / "regression_cases.json"
@@ -134,8 +154,16 @@ def evaluate_case_by_type(case_type: str, case: dict[str, Any]) -> dict[str, Any
         return evaluate_local_critic_case(case)
     if case_type == "revision_validation":
         return evaluate_revision_validation_case(case)
+    if case_type == "section_revision_validation":
+        return evaluate_section_revision_validation_case(case)
+    if case_type == "revision_plan":
+        return evaluate_revision_plan_case(case)
     if case_type == "should_revise":
         return evaluate_should_revise_case(case)
+    if case_type == "event_taxonomy_pair":
+        return evaluate_event_taxonomy_pair_case(case)
+    if case_type == "taxonomy_builder":
+        return evaluate_taxonomy_builder_case(case)
     raise ValueError(f"Unsupported regression case type: {case_type}")
 
 
@@ -196,11 +224,136 @@ def evaluate_revision_validation_case(case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def evaluate_section_revision_validation_case(case: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate section-level revision gate."""
+
+    section_title = str(case.get("section_title", "今日摘要"))
+    original_section = ReportSection(
+        title=section_title,
+        content=str(case.get("original_section", "")),
+        index=1,
+    )
+    revised_section = str(case.get("revised_section", ""))
+    accepted, reason = validate_section_revision(original_section, revised_section)
+    return {
+        "accepted": accepted,
+        "reason": reason,
+        "revised_chars": len(revised_section),
+    }
+
+
+def evaluate_revision_plan_case(case: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate structured revision plan parsing."""
+
+    report = build_report_text(case.get("report"))
+    plan_response = str(case.get("plan_response", ""))
+    plan = parse_revision_plan_response(plan_response, report)
+    return {
+        "plan_valid": plan.valid,
+        "plan_reason": plan.rejected_reason,
+        "section_titles": sorted(plan.section_instructions.keys()),
+        "section_count": len(plan.section_instructions),
+        "global_instruction_count": len(plan.global_instructions),
+        "report_sections": [section.title for section in split_report_sections(report)],
+    }
+
+
 def evaluate_should_revise_case(case: dict[str, Any]) -> dict[str, Any]:
     """Evaluate critic decision parsing."""
 
     critique = str(case.get("critique", ""))
     return {"should_revise": should_revise(critique)}
+
+
+def evaluate_event_taxonomy_pair_case(case: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate taxonomy extraction and pairwise event merge decisions without embeddings API."""
+
+    raw_items = case.get("items", [])
+    if not isinstance(raw_items, list):
+        raise ValueError("Case items must be a list")
+
+    features_by_id: dict[str, EventFeatures] = {}
+    item_actual: dict[str, dict[str, list[str]]] = {}
+    for index, raw_item in enumerate(raw_items, start=1):
+        if not isinstance(raw_item, dict):
+            raise ValueError("Each event taxonomy item must be an object")
+        item_id = str(raw_item.get("id", f"item_{index}"))
+        text = str(raw_item.get("text", ""))
+        embedding = read_float_list(raw_item.get("embedding"), [1.0, 0.0, 0.0])
+        products = extract_products(text)
+        entities = extract_entities(text) | products
+        features = EventFeatures(
+            text=text,
+            embedding=embedding,
+            entities=entities,
+            products=products,
+            actions=extract_actions(text),
+            keywords=extract_keywords(text),
+        )
+        features_by_id[item_id] = features
+        item_actual[item_id] = {
+            "entities": sorted(features.entities),
+            "products": sorted(features.products),
+            "actions": sorted(features.actions),
+            "keywords": sorted(features.keywords),
+        }
+
+    pair_actual: dict[str, dict[str, Any]] = {}
+    raw_pairs = case.get("pairs", [])
+    if not isinstance(raw_pairs, list):
+        raise ValueError("Case pairs must be a list")
+    for raw_pair in raw_pairs:
+        if not isinstance(raw_pair, dict):
+            raise ValueError("Each event taxonomy pair must be an object")
+        left_id = str(raw_pair.get("left", ""))
+        right_id = str(raw_pair.get("right", ""))
+        if left_id not in features_by_id or right_id not in features_by_id:
+            raise ValueError(f"Unknown pair ids: {left_id}, {right_id}")
+        should_merge, reason = should_merge_pair(
+            features_by_id[left_id],
+            features_by_id[right_id],
+            hybrid_threshold=float(raw_pair.get("hybrid_threshold", 0.58) or 0.58),
+        )
+        pair_actual[f"{left_id}|{right_id}"] = {
+            "should_merge": should_merge,
+            "reason": reason,
+        }
+
+    return {
+        "items": item_actual,
+        "pairs": pair_actual,
+    }
+
+
+def evaluate_taxonomy_builder_case(case: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate taxonomy auto-generation in a temporary taxonomy directory."""
+
+    items = [item for _, item in read_case_items(case)]
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        taxonomy_dir = Path(tmp_dir) / "event_taxonomy"
+        prepare_temp_taxonomy_dir(taxonomy_dir)
+        result = update_event_taxonomy_from_items(
+            items,
+            taxonomy_dir=taxonomy_dir,
+            show_progress=False,
+        )
+        products = read_json(taxonomy_dir / "generated" / "products.generated.json")
+        actions = read_json(taxonomy_dir / "generated" / "action_aliases.generated.json")
+        review = read_json(taxonomy_dir / "review" / "taxonomy_candidates.json")
+
+    return {
+        "auto_entity_aliases": result.auto_entity_aliases,
+        "auto_product_aliases": result.auto_product_aliases,
+        "auto_action_aliases": result.auto_action_aliases,
+        "review_candidates": result.review_candidates,
+        "generated_products": products.get("products", {}),
+        "generated_actions": actions.get("actions", {}),
+        "review_aliases": [
+            str(candidate.get("alias", ""))
+            for candidate in review.get("candidates", [])
+            if isinstance(candidate, dict)
+        ],
+    }
 
 
 def compare_expected(
@@ -236,8 +389,24 @@ def compare_expected(
         checks.append((issue_count >= min_issue_count, f"issue_count {issue_count} >= {min_issue_count}"))
     elif case_type == "revision_validation":
         checks.append(equal_check("accepted", expected, actual))
+    elif case_type == "section_revision_validation":
+        checks.append(equal_check("accepted", expected, actual))
+    elif case_type == "revision_plan":
+        checks.append(equal_check("plan_valid", expected, actual))
+        expected_sections = set(read_string_list(expected.get("section_titles"), []))
+        actual_sections = set(read_string_list(actual.get("section_titles"), []))
+        checks.append(
+            (
+                expected_sections <= actual_sections,
+                f"section_titles contains {sorted(expected_sections)}",
+            )
+        )
     elif case_type == "should_revise":
         checks.append(equal_check("should_revise", expected, actual))
+    elif case_type == "event_taxonomy_pair":
+        checks.extend(event_taxonomy_checks(expected, actual))
+    elif case_type == "taxonomy_builder":
+        checks.extend(taxonomy_builder_checks(expected, actual))
     else:
         checks.append((False, f"Unsupported case type: {case_type}"))
 
@@ -316,6 +485,147 @@ def read_string_list(value: object, default: list[str]) -> list[str]:
     if not isinstance(value, list):
         return default
     return [str(item) for item in value]
+
+
+def read_float_list(value: object, default: list[float]) -> list[float]:
+    """Read a JSON value as a float list."""
+
+    if not isinstance(value, list):
+        return default
+    floats: list[float] = []
+    for item in value:
+        try:
+            floats.append(float(item))
+        except (TypeError, ValueError):
+            return default
+    return floats or default
+
+
+def event_taxonomy_checks(
+    expected: dict[str, Any],
+    actual: dict[str, Any],
+) -> list[tuple[bool, str]]:
+    """Compare event taxonomy extraction and merge expectations."""
+
+    checks: list[tuple[bool, str]] = []
+    actual_items = actual.get("items", {})
+    if not isinstance(actual_items, dict):
+        actual_items = {}
+    for item_id, raw_expected_fields in read_mapping(expected.get("items")).items():
+        actual_fields = actual_items.get(item_id, {})
+        if not isinstance(actual_fields, dict):
+            actual_fields = {}
+        for field, expected_values in read_mapping(raw_expected_fields).items():
+            actual_values = set(read_string_list(actual_fields.get(field), []))
+            for expected_value in read_string_list(expected_values, []):
+                checks.append(
+                    (
+                        expected_value in actual_values,
+                        f"{item_id}.{field} contains {expected_value!r}",
+                    )
+                )
+
+    actual_pairs = actual.get("pairs", {})
+    if not isinstance(actual_pairs, dict):
+        actual_pairs = {}
+    for pair_key, expected_value in read_mapping(expected.get("pairs")).items():
+        actual_pair = actual_pairs.get(pair_key, {})
+        actual_merge = actual_pair.get("should_merge") if isinstance(actual_pair, dict) else None
+        checks.append(
+            (
+                actual_merge == expected_value,
+                f"{pair_key}.should_merge: expected {expected_value!r}, got {actual_merge!r}",
+            )
+        )
+    return checks
+
+
+def taxonomy_builder_checks(
+    expected: dict[str, Any],
+    actual: dict[str, Any],
+) -> list[tuple[bool, str]]:
+    """Compare taxonomy builder generated aliases and review hints."""
+
+    checks: list[tuple[bool, str]] = []
+    for key in ["auto_product_aliases", "auto_action_aliases"]:
+        minimum = int(expected.get(f"min_{key}", 0) or 0)
+        actual_value = int(actual.get(key, 0) or 0)
+        checks.append((actual_value >= minimum, f"{key} {actual_value} >= {minimum}"))
+
+    generated_products = actual.get("generated_products", {})
+    if not isinstance(generated_products, dict):
+        generated_products = {}
+    for spec in read_mapping(expected.get("generated_products")).values():
+        if not isinstance(spec, dict):
+            continue
+        canonical = str(spec.get("canonical", ""))
+        alias = str(spec.get("alias", ""))
+        aliases = set(read_string_list(generated_products.get(canonical), []))
+        checks.append((alias in aliases, f"generated product {canonical} contains {alias}"))
+
+    generated_actions = actual.get("generated_actions", {})
+    if not isinstance(generated_actions, dict):
+        generated_actions = {}
+    for spec in read_mapping(expected.get("generated_actions")).values():
+        if not isinstance(spec, dict):
+            continue
+        action_id = str(spec.get("action", ""))
+        alias = str(spec.get("alias", ""))
+        raw_action = generated_actions.get(action_id, {})
+        aliases = []
+        if isinstance(raw_action, dict):
+            aliases = read_string_list(raw_action.get("aliases"), [])
+        checks.append((alias in set(aliases), f"generated action {action_id} contains {alias}"))
+
+    review_aliases = set(read_string_list(actual.get("review_aliases"), []))
+    for alias in read_string_list(expected.get("review_aliases"), []):
+        checks.append((alias in review_aliases, f"review aliases contain {alias}"))
+    return checks
+
+
+def read_mapping(value: object) -> dict[str, Any]:
+    """Read a JSON value as a dictionary."""
+
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): item for key, item in value.items()}
+
+
+def prepare_temp_taxonomy_dir(taxonomy_dir: Path) -> None:
+    """Prepare a clean taxonomy fixture directory for regression tests."""
+
+    taxonomy_dir.mkdir(parents=True, exist_ok=True)
+    for filename in [
+        "entities.json",
+        "products.json",
+        "action_aliases.json",
+        "stopwords.json",
+        "patterns.json",
+    ]:
+        shutil.copyfile(DEFAULT_TAXONOMY_DIR / filename, taxonomy_dir / filename)
+
+    (taxonomy_dir / "generated").mkdir(parents=True, exist_ok=True)
+    (taxonomy_dir / "overrides").mkdir(parents=True, exist_ok=True)
+    (taxonomy_dir / "generated" / "entities.generated.json").write_text(
+        json.dumps({"generated_at": "", "entities": {}}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (taxonomy_dir / "generated" / "products.generated.json").write_text(
+        json.dumps({"generated_at": "", "products": {}}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (taxonomy_dir / "generated" / "action_aliases.generated.json").write_text(
+        json.dumps({"generated_at": "", "actions": {}}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (taxonomy_dir / "overrides" / "aliases.override.json").write_text(
+        json.dumps(
+            {"entities": {}, "products": {}, "actions": {}, "blocked_aliases": []},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 def item_key(item: NewsItem) -> tuple[str, str, str, str, str, str]:

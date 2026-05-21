@@ -26,7 +26,7 @@ from ai_report_agent.config import Settings
 # critic 模块负责报告质量自查、判断是否要修订，以及根据自查结果修订报告。
 from ai_report_agent.critic import (
     critique_report,
-    revise_report,
+    revise_report_with_plan,
     should_revise,
     validate_revision_report,
 )
@@ -98,6 +98,9 @@ from ai_report_agent.sources import collect_news, load_sources, save_raw_items
 
 # state 模块负责创建和保存一次运行的 JSON 状态文件。
 from ai_report_agent.state import create_run_state, save_run_state
+
+# taxonomy_builder 模块负责从本次新闻里自动发现词典候选。
+from ai_report_agent.taxonomy_builder import update_event_taxonomy_from_items
 
 
 def attach_llm_usage_metrics(span, before_usage: dict[str, int | float]) -> None:
@@ -264,6 +267,33 @@ def run_daily_report(settings: Settings) -> Path:
 
         # 打印采集结果，便于命令行观察进度。
         print(f"Collected {len(items)} items. Raw data saved to: {raw_data_path}")
+
+        # 从本次 RSS 新闻里自动发现实体、产品和动作别名。
+        # 高置信候选会写入 generated 词典；低置信候选会提示人工修正。
+        with trace.span("update_event_taxonomy") as span:
+            try:
+                taxonomy_result = update_event_taxonomy_from_items(items)
+                span.metrics["auto_entity_aliases"] = taxonomy_result.auto_entity_aliases
+                span.metrics["auto_product_aliases"] = taxonomy_result.auto_product_aliases
+                span.metrics["auto_action_aliases"] = taxonomy_result.auto_action_aliases
+                span.metrics["review_candidates"] = taxonomy_result.review_candidates
+                span.metrics["taxonomy_review_path"] = taxonomy_result.review_path
+                span.metrics["taxonomy_report_path"] = taxonomy_result.report_path
+                state.decisions.append(
+                    "Taxonomy auto-update: "
+                    f"{taxonomy_result.auto_entity_aliases} entity aliases, "
+                    f"{taxonomy_result.auto_product_aliases} product aliases, "
+                    f"{taxonomy_result.auto_action_aliases} action aliases generated; "
+                    f"{taxonomy_result.review_candidates} candidates need review."
+                )
+                if taxonomy_result.review_candidates:
+                    state.decisions.append(
+                        f"Taxonomy manual review file: {taxonomy_result.review_path}"
+                    )
+            except Exception as exc:
+                span.metrics["taxonomy_update_error"] = str(exc)
+                print(f"Taxonomy auto-update skipped: {exc}")
+                state.decisions.append(f"Taxonomy auto-update skipped: {exc}")
 
         # 再次同步运行状态，记录采集阶段结果。
         upsert_run_state(settings.database_path, state)
@@ -524,19 +554,39 @@ def run_daily_report(settings: Settings) -> Path:
                 # 不能让短输出直接覆盖一份已经完整生成的日报。
                 original_markdown = markdown
 
-                # revise_report 返回模型修订后的 Markdown 候选稿。
-                revised_markdown = revise_report(settings, markdown, critique, profile)
+                # 新修订链路先生成结构化计划，再只修订被点名的区块。
+                revision_result = revise_report_with_plan(settings, markdown, critique, profile)
+                revised_markdown = revision_result.markdown
 
                 # 在 trace 中记录修订后文本长度。
                 span.metrics["revised_markdown_chars"] = len(revised_markdown)
+                span.metrics["revision_plan_valid"] = revision_result.plan_valid
+                span.metrics["revision_plan_reason"] = revision_result.plan_reason
+                span.metrics["revised_section_count"] = len(revision_result.revised_sections)
+                span.metrics["rejected_section_count"] = len(revision_result.rejected_sections)
                 attach_llm_usage_metrics(span, usage_before)
+
+                if revision_result.revised_sections:
+                    state.decisions.append(
+                        "Revision sections updated: "
+                        f"{', '.join(revision_result.revised_sections)}"
+                    )
+                if revision_result.rejected_sections:
+                    state.decisions.append(
+                        "Revision sections rejected: "
+                        f"{'; '.join(revision_result.rejected_sections)}"
+                    )
 
                 # Version 13 稳定性补丁：校验修订稿是否完整。
                 # 如果修订稿过短或缺少关键结构，保留原报告，避免最终报告被截断。
-                revision_ok, revision_reason = validate_revision_report(
-                    original_markdown,
-                    revised_markdown,
-                )
+                if revision_result.plan_valid:
+                    revision_ok, revision_reason = validate_revision_report(
+                        original_markdown,
+                        revised_markdown,
+                    )
+                else:
+                    revision_ok = False
+                    revision_reason = revision_result.plan_reason
                 span.metrics["revision_accepted"] = revision_ok
                 span.metrics["revision_validation_reason"] = revision_reason
 
