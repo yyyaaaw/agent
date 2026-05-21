@@ -86,6 +86,52 @@
       }
     },
     {
+      "id": "scorer_uses_source_metadata_for_domestic_coverage",
+      "type": "scoring_order",
+      "description": "Domestic Chinese general-news AI application items should get a metadata boost over generic low-priority research notes.",
+      "profile": {
+        "interests": ["agent", "workflow", "enterprise", "工具"],
+        "avoid": ["paper", "benchmark", "algorithm"],
+        "preferred_categories": ["应用与产品", "企业应用", "产品与研究"],
+        "report_style": "Practical and application-focused.",
+        "top_questions": ["Can users apply this now?"]
+      },
+      "items": [
+        {
+          "id": "domestic_agent_tool",
+          "source": "机器之心",
+          "category": "应用与产品",
+          "title": "国产 AI agent 工作流工具发布，面向企业客服自动化",
+          "link": "https://example.cn/domestic-agent-tool",
+          "published": "2026-05-16",
+          "summary": "这是一款面向企业客服和办公流程的 AI 工具，强调可落地应用。",
+          "region": "china",
+          "language": "zh",
+          "source_type": "general_news",
+          "priority": 5,
+          "tags": ["国内", "产品", "企业", "工具"]
+        },
+        {
+          "id": "global_research_note",
+          "source": "Arxiv CS AI",
+          "category": "研究论文",
+          "title": "Research paper improves transformer benchmark",
+          "link": "https://example.com/research-paper",
+          "published": "2026-05-16",
+          "summary": "A paper focuses on algorithm details and benchmark results.",
+          "region": "global",
+          "language": "en",
+          "source_type": "research",
+          "priority": 1,
+          "tags": ["paper", "research"]
+        }
+      ],
+      "expect": {
+        "top_id": "domestic_agent_tool",
+        "above_ids": ["global_research_note"]
+      }
+    },
+    {
       "id": "critic_flags_missing_report_metadata",
       "type": "local_critic",
       "description": "A report without standard date metadata should trigger local critic issues.",

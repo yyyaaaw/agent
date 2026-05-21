@@ -151,6 +151,21 @@ class NewsItem:
     # 摘要或正文片段。
     summary: str
 
+    # 来源所在区域，例如 global、china。旧测试和手工构造对象可使用默认值。
+    region: str = "global"
+
+    # 来源主要语言，例如 en、zh。
+    language: str = "en"
+
+    # 来源类型，例如 company、general_news、research、community。
+    source_type: str = "company"
+
+    # 来源优先级，来自 sources.json。
+    priority: int = 3
+
+    # 来源主题标签，供评分和后续解释使用。
+    tags: list[str] = field(default_factory=list)
+
 
 @dataclass(frozen=True)
 class FetchResult:
@@ -658,6 +673,11 @@ def parse_feed(source: NewsSource, content: bytes, limit: int) -> list[NewsItem]
                     link=link,
                     published=published,
                     summary=summary[:600],
+                    region=source.region,
+                    language=source.language,
+                    source_type=source.source_type,
+                    priority=source.priority,
+                    tags=source.tags,
                 )
             )
 

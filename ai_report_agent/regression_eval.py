@@ -285,6 +285,11 @@ def read_news_item(raw_item: dict[str, Any]) -> NewsItem:
         link=str(raw_item.get("link", "")),
         published=str(raw_item.get("published", "")),
         summary=str(raw_item.get("summary", "")),
+        region=str(raw_item.get("region", "global")),
+        language=str(raw_item.get("language", "en")),
+        source_type=str(raw_item.get("source_type", "company")),
+        priority=int(raw_item.get("priority", 3) or 3),
+        tags=read_string_list(raw_item.get("tags"), []),
     )
 
 
