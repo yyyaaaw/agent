@@ -109,21 +109,6 @@ class NewsSource:
     # 备用 RSS 地址。主地址失败时按顺序尝试。
     fallback_urls: list[str] = field(default_factory=list)
 
-    # 来源所在区域，用于后续评分和来源配额，例如 global、china。
-    region: str = "global"
-
-    # 来源主要语言，例如 en、zh。
-    language: str = "en"
-
-    # 来源类型，例如 company、general_news、research、community。
-    source_type: str = "company"
-
-    # 来源优先级，数字越大越重要。当前只记录和规划，不直接影响评分。
-    priority: int = 3
-
-    # 轻量主题标签，给后续评分、源规划和报告解释使用。
-    tags: list[str] = field(default_factory=list)
-
 
 @dataclass(frozen=True)
 class NewsItem:
@@ -300,21 +285,6 @@ FALLBACK_SOURCES = [
     ),
 ]
 
-def parse_string_list(value: object) -> list[str]:
-    """Return a clean string list from optional JSON list values."""
-    if not isinstance(value, list):
-        return []
-    return [str(item).strip() for item in value if str(item).strip()]
-
-
-def parse_priority(value: object, default: int = 3) -> int:
-    """Read source priority and keep it in a small, predictable range."""
-    try:
-        priority = int(value)
-    except (TypeError, ValueError):
-        priority = default
-    return max(1, min(5, priority))
-
 
 def load_sources(config_path: Path) -> list[NewsSource]:
     """从 sources.json 加载信息源配置。
@@ -341,6 +311,11 @@ def load_sources(config_path: Path) -> list[NewsSource]:
         if not item.get("enabled", True):
             continue
 
+        # fallback_urls 需要保证最终是字符串列表，避免配置里误写成其他类型。
+        raw_fallback_urls = item.get("fallback_urls", [])
+        if not isinstance(raw_fallback_urls, list):
+            raw_fallback_urls = []
+
         sources.append(
             NewsSource(
                 name=str(item["name"]),
@@ -348,12 +323,7 @@ def load_sources(config_path: Path) -> list[NewsSource]:
                 category=str(item.get("category", "应用与产品")),
                 enabled=bool(item.get("enabled", True)),
                 homepage_url=str(item.get("homepage_url", "")),
-                fallback_urls=parse_string_list(item.get("fallback_urls", [])),
-                region=str(item.get("region", "global")).strip() or "global",
-                language=str(item.get("language", "en")).strip() or "en",
-                source_type=str(item.get("source_type", "company")).strip() or "company",
-                priority=parse_priority(item.get("priority", 3)),
-                tags=parse_string_list(item.get("tags", [])),
+                fallback_urls=[str(url) for url in raw_fallback_urls if url],
             )
         )
 
@@ -427,10 +397,6 @@ def update_source_success(
     health[source.name] = {
         "source_name": source.name,
         "configured_url": source.url,
-        "region": source.region,
-        "language": source.language,
-        "source_type": source.source_type,
-        "priority": source.priority,
         "working_url": working_url,
         "last_status": "success",
         "last_success_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -460,10 +426,6 @@ def update_source_failure(
     health[source.name] = {
         "source_name": source.name,
         "configured_url": source.url,
-        "region": source.region,
-        "language": source.language,
-        "source_type": source.source_type,
-        "priority": source.priority,
         "working_url": str(previous.get("working_url", "")),
         "last_status": "failure",
         "last_success_at": str(previous.get("last_success_at", "")),
@@ -777,129 +739,10 @@ def collect_one_source(
     return [], combined_error
 
 
-def short_error_text(error: str, max_chars: int = 160) -> str:
-    """Keep progress output readable while detailed errors stay in JSON files."""
-    cleaned = re.sub(r"\s+", " ", error or "").strip()
-    if len(cleaned) <= max_chars:
-        return cleaned
-    return cleaned[: max_chars - 3] + "..."
-
-
-def print_source_progress(
-    status: str,
-    index: int,
-    total: int,
-    source: NewsSource,
-    item_count: int = 0,
-    error: str = "",
-) -> None:
-    """Print one concise RSS collection progress line for the CLI."""
-    prefix = f"[{index}/{total}] {source.name}"
-    metadata = f"{source.region}/{source.source_type}/{source.language}"
-
-    if status == "start":
-        print(f"{prefix} ({metadata}) ...")
-    elif status == "success":
-        print(f"{prefix} OK: {item_count} items")
-    else:
-        print(f"{prefix} FAIL: {short_error_text(error)}")
-
-
-def build_source_plan(
-    sources: list[NewsSource],
-    health: dict[str, dict[str, object]],
-) -> dict[str, object]:
-    """Build lightweight source-planning recommendations from config and health.
-
-    This does not mutate sources.json. It gives the agent a durable planning
-    artifact that can later be reviewed or applied explicitly.
-    """
-    region_counts: dict[str, int] = {}
-    type_counts: dict[str, int] = {}
-    language_counts: dict[str, int] = {}
-    recommendations: list[dict[str, object]] = []
-
-    for source in sources:
-        region_counts[source.region] = region_counts.get(source.region, 0) + 1
-        type_counts[source.source_type] = type_counts.get(source.source_type, 0) + 1
-        language_counts[source.language] = language_counts.get(source.language, 0) + 1
-
-        health_entry = health.get(source.name, {})
-        try:
-            consecutive_failures = int(health_entry.get("consecutive_failures", 0) or 0)
-        except (TypeError, ValueError):
-            consecutive_failures = 0
-        last_status = str(health_entry.get("last_status", "unknown") or "unknown")
-
-        if consecutive_failures >= 5:
-            recommendations.append(
-                {
-                    "action": "review_disable_or_replace",
-                    "source": source.name,
-                    "reason": f"consecutive_failures={consecutive_failures}",
-                    "priority": "high",
-                }
-            )
-        elif last_status == "failure" and source.priority >= 4:
-            recommendations.append(
-                {
-                    "action": "review_fallback_urls",
-                    "source": source.name,
-                    "reason": "high-priority source failed in the latest run",
-                    "priority": "medium",
-                }
-            )
-
-    china_count = region_counts.get("china", 0)
-    zh_count = language_counts.get("zh", 0)
-    general_count = type_counts.get("general_news", 0) + type_counts.get("general_tech", 0)
-
-    if china_count < 6 or zh_count < 6:
-        recommendations.append(
-            {
-                "action": "expand_domestic_sources",
-                "source": "",
-                "reason": f"china_sources={china_count}, zh_sources={zh_count}; target>=6",
-                "priority": "high",
-            }
-        )
-
-    if general_count < 5:
-        recommendations.append(
-            {
-                "action": "expand_general_news_sources",
-                "source": "",
-                "reason": f"general_news_sources={general_count}; target>=5",
-                "priority": "medium",
-            }
-        )
-
-    return {
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "source_count": len(sources),
-        "region_counts": region_counts,
-        "language_counts": language_counts,
-        "source_type_counts": type_counts,
-        "recommendations": recommendations,
-    }
-
-
-def save_source_plan(plan: dict[str, object], path: Path) -> None:
-    """Save source-planning recommendations next to the current run data."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(plan, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
-
 def collect_news(
     sources: list[NewsSource],
     limit_per_source: int,
     timeout: int | None,
-    source_health_path: Path = SOURCE_HEALTH_PATH,
-    source_plan_path: Path | None = None,
-    show_progress: bool = True,
 ) -> tuple[list[NewsItem], list[str]]:
     """抓取所有信息源。
 
@@ -913,16 +756,9 @@ def collect_news(
     errors: list[str] = []
 
     # 读取历史健康状态，作为本次候选 URL 排序依据。
-    health = load_source_health(source_health_path)
+    health = load_source_health()
 
-    total_sources = len(sources)
-    if show_progress:
-        print(f"RSS collection: {total_sources} sources, limit {limit_per_source} per source.")
-
-    for index, source in enumerate(sources, start=1):
-        if show_progress:
-            print_source_progress("start", index, total_sources, source)
-
+    for source in sources:
         items, error = collect_one_source(
             source=source,
             limit_per_source=limit_per_source,
@@ -932,21 +768,11 @@ def collect_news(
 
         if items:
             all_items.extend(items)
-            if show_progress:
-                print_source_progress("success", index, total_sources, source, len(items))
         else:
             errors.append(f"{source.name}: {error}")
-            if show_progress:
-                print_source_progress("failure", index, total_sources, source, error=error)
 
     # 无论本次是否有失败，都保存健康状态。这样成功 URL 和连续失败次数都会被沉淀下来。
-    save_source_health(health, source_health_path)
-
-    if source_plan_path is not None:
-        save_source_plan(build_source_plan(sources, health), source_plan_path)
-
-    if show_progress:
-        print(f"RSS collection done: {len(all_items)} items, {len(errors)} failed sources.")
+    save_source_health(health)
 
     return all_items, errors
 

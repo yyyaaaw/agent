@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "description": "Deterministic regression cases for core agent behavior. These cases do not call network or LLM APIs.",
+  "cases": [
+    {
+      "id": "dedup_removes_tracking_url_duplicate",
+      "type": "deduplication",
+      "description": "Same article URL with tracking parameters should be treated as a duplicate.",
+      "items": [
+        {
+          "id": "agent_workflow_original",
+          "source": "Example AI",
+          "category": "应用与产品",
+          "title": "AI agent workflow launches for enterprise support",
+          "link": "https://example.com/posts/agent-workflow?utm_source=rss&ref=feed",
+          "published": "2026-05-16",
+          "summary": "A new product workflow helps enterprise teams automate support triage."
+        },
+        {
+          "id": "agent_workflow_duplicate",
+          "source": "Example Mirror",
+          "category": "应用与产品",
+          "title": "AI agent workflow launches for enterprise support",
+          "link": "https://example.com/posts/agent-workflow",
+          "published": "2026-05-16",
+          "summary": "Mirror copy of the same product launch."
+        },
+        {
+          "id": "creative_assistant_feature",
+          "source": "Example Product",
+          "category": "应用与产品",
+          "title": "Creative assistant adds video editing feature",
+          "link": "https://example.com/posts/creative-assistant-video",
+          "published": "2026-05-16",
+          "summary": "A creative AI assistant adds a concrete video editing feature."
+        }
+      ],
+      "expect": {
+        "unique_count": 2,
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": "scorer_prioritizes_application_news",
+      "type": "scoring_order",
+      "description": "Application and workflow news should rank above pure research content.",
+      "profile": {
+        "interests": ["agent", "workflow", "enterprise", "creative"],
+        "avoid": ["paper", "benchmark", "algorithm"],
+        "preferred_categories": ["应用与产品", "企业应用"],
+        "report_style": "Practical and application-focused.",
+        "top_questions": ["Can users apply this now?"]
+      },
+      "items": [
+        {
+          "id": "app_agent_tool",
+          "source": "Example Product",
+          "category": "应用与产品",
+          "title": "New AI agent tool automates enterprise support workflows",
+          "link": "https://example.com/app-agent-tool",
+          "published": "2026-05-16",
+          "summary": "The product launch adds an agent workflow for enterprise support teams."
+        },
+        {
+          "id": "research_paper",
+          "source": "Example Research",
+          "category": "研究论文",
+          "title": "Research paper improves transformer benchmark",
+          "link": "https://example.com/research-paper",
+          "published": "2026-05-16",
+          "summary": "A paper focuses on algorithm details and benchmark results."
+        },
+        {
+          "id": "creative_feature",
+          "source": "Example App",
+          "category": "应用与产品",
+          "title": "Creative assistant adds a new editing feature",
+          "link": "https://example.com/creative-feature",
+          "published": "2026-05-16",
+          "summary": "A creative AI assistant adds a concrete feature for creators."
+        }
+      ],
+      "expect": {
+        "top_id": "app_agent_tool",
+        "above_ids": ["research_paper"]
+      }
+    },
+    {
+      "id": "critic_flags_missing_report_metadata",
+      "type": "local_critic",
+      "description": "A report without standard date metadata should trigger local critic issues.",
+      "today": "2026-05-16",
+      "report": "## 今日摘要\n这是一份缺少标准一级标题和生成时间的日报。\n\n## 参考来源\n- https://example.com/news\n",
+      "expect": {
+        "min_issue_count": 2
+      }
+    },
+    {
+      "id": "revision_gate_rejects_short_reply",
+      "type": "revision_validation",
+      "description": "A short conversational LLM reply must not overwrite a complete report.",
+      "original_report": {
+        "header": "# AI Hotspots Daily - 2026-05-16\n\nGenerated at: 2026-05-16 09:00:00\n\n",
+        "repeat_section": "## 今日摘要\n- This is a complete report section with sources, context, and practical application notes.\n\n## 参考来源\n- https://example.com/source\n\n",
+        "repeat_count": 12
+      },
+      "revised_report": "收到，我会根据这些意见重新整理一份更完整的日报。",
+      "expect": {
+        "accepted": false
+      }
+    },
+    {
+      "id": "should_revise_detects_fail_conclusion",
+      "type": "should_revise",
+      "description": "Explicit FAIL critic conclusion should trigger revision.",
+      "critique": "结论：FAIL\n主要问题：存在无来源支撑的事实。\n修改建议：删除或补充来源。",
+      "expect": {
+        "should_revise": true
+      }
+    }
+  ]
+}

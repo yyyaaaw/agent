@@ -1,0 +1,195 @@
+[
+  {
+    "name": "OpenAI Blog",
+    "url": "https://openai.com/news/rss.xml",
+    "homepage_url": "https://openai.com/news/",
+    "fallback_urls": [
+      "https://openai.com/blog/rss.xml"
+    ],
+    "category": "产品与模型",
+    "enabled": true
+  },
+  {
+    "name": "Google DeepMind Blog",
+    "url": "https://deepmind.google/discover/blog/rss.xml",
+    "homepage_url": "https://deepmind.google/discover/blog/",
+    "fallback_urls": [
+      "https://deepmind.google/discover/blog/rss/",
+      "https://deepmind.google/blog/rss.xml"
+    ],
+    "category": "产品与研究",
+    "enabled": true
+  },
+  {
+    "name": "Microsoft AI Blog",
+    "url": "https://blogs.microsoft.com/ai/feed/",
+    "homepage_url": "https://blogs.microsoft.com/ai/",
+    "fallback_urls": [
+      "https://blogs.microsoft.com/feed/"
+    ],
+    "category": "企业应用",
+    "enabled": true
+  },
+  {
+    "name": "NVIDIA AI Blog",
+    "url": "https://blogs.nvidia.com/blog/category/deep-learning/feed/",
+    "homepage_url": "https://blogs.nvidia.com/blog/category/deep-learning/",
+    "fallback_urls": [
+      "https://blogs.nvidia.com/feed/"
+    ],
+    "category": "企业应用",
+    "enabled": true
+  },
+  {
+    "name": "VentureBeat AI",
+    "url": "https://venturebeat.com/category/ai/feed/",
+    "homepage_url": "https://venturebeat.com/category/ai/",
+    "fallback_urls": [
+      "https://venturebeat.com/category/ai/feed",
+      "https://venturebeat.com/feed/"
+    ],
+    "category": "应用与商业",
+    "enabled": true
+  },
+  {
+    "name": "TechCrunch AI",
+    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "homepage_url": "https://techcrunch.com/category/artificial-intelligence/",
+    "fallback_urls": [
+      "https://techcrunch.com/feed/"
+    ],
+    "category": "应用与商业",
+    "enabled": true
+  },
+  {
+    "name": "The Decoder",
+    "url": "https://the-decoder.com/feed/",
+    "homepage_url": "https://the-decoder.com/",
+    "fallback_urls": [],
+    "category": "应用与产品",
+    "enabled": true
+  },
+  {
+    "name": "MIT Technology Review AI",
+    "url": "https://www.technologyreview.com/feed/",
+    "homepage_url": "https://www.technologyreview.com/",
+    "fallback_urls": [],
+    "category": "趋势与影响",
+    "enabled": true
+  },
+  {
+    "name": "Arxiv CS AI",
+    "url": "https://export.arxiv.org/rss/cs.AI",
+    "homepage_url": "https://arxiv.org/list/cs.AI/recent",
+    "fallback_urls": [],
+    "category": "研究论文",
+    "enabled": true
+  },
+  {
+    "name": "Google AI Updates",
+    "url": "https://blog.google/feed/",
+    "homepage_url": "https://blog.google/technology/ai/",
+    "fallback_urls": [
+      "https://blog.google/rss/"
+    ],
+    "category": "产品与模型",
+    "enabled": true
+  },
+  {
+    "name": "InfoQ AI News",
+    "url": "https://feed.infoq.com/ai/news/",
+    "homepage_url": "https://www.infoq.com/ai/news/",
+    "fallback_urls": [
+      "https://feed.infoq.com/ai-ml-data-eng/"
+    ],
+    "category": "产品与模型",
+    "enabled": true
+  },
+  {
+    "name": "Hugging Face Blog",
+    "url": "https://huggingface.co/blog/feed.xml",
+    "homepage_url": "https://huggingface.co/blog",
+    "fallback_urls": [],
+    "category": "产品与研究",
+    "enabled": true
+  },
+  {
+    "name": "Google Research Blog",
+    "url": "https://research.google/blog/rss/",
+    "homepage_url": "https://research.google/blog/",
+    "fallback_urls": [
+      "https://research.google/blog/rss.xml",
+      "https://research.google/blog/feed.xml"
+    ],
+    "category": "产品与研究",
+    "enabled": true
+  },
+  {
+    "name": "AWS Machine Learning Blog",
+    "url": "https://aws.amazon.com/blogs/machine-learning/feed/",
+    "homepage_url": "https://aws.amazon.com/blogs/machine-learning/",
+    "fallback_urls": [
+      "https://aws.amazon.com/blogs/aws/category/artificial-intelligence/feed/"
+    ],
+    "category": "企业应用",
+    "enabled": true
+  },
+  {
+    "name": "Google Cloud AI Blog",
+    "url": "https://cloud.google.com/blog/products/rss",
+    "homepage_url": "https://cloud.google.com/blog/products/ai-machine-learning",
+    "fallback_urls": [],
+    "category": "企业应用",
+    "enabled": true
+  },
+  {
+    "name": "The Verge AI",
+    "url": "https://www.theverge.com/rss/index.xml",
+    "homepage_url": "https://www.theverge.com/ai-artificial-intelligence",
+    "fallback_urls": [],
+    "category": "应用与商业",
+    "enabled": true
+  },
+  {
+    "name": "Product Hunt",
+    "url": "https://www.producthunt.com/feed",
+    "homepage_url": "https://www.producthunt.com/topics/artificial-intelligence",
+    "fallback_urls": [],
+    "category": "应用与产品",
+    "enabled": true
+  },
+  {
+    "name": "WIRED AI",
+    "url": "https://www.wired.com/feed/tag/ai/latest/rss",
+    "homepage_url": "https://www.wired.com/tag/artificial-intelligence/",
+    "fallback_urls": [
+      "https://www.wired.com/feed/rss"
+    ],
+    "category": "趋势与影响",
+    "enabled": true
+  },
+  {
+    "name": "ScienceDaily AI",
+    "url": "https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml",
+    "homepage_url": "https://www.sciencedaily.com/news/computers_math/artificial_intelligence/",
+    "fallback_urls": [],
+    "category": "趋势与影响",
+    "enabled": true
+  },
+  {
+    "name": "Arxiv CS LG",
+    "url": "https://export.arxiv.org/rss/cs.LG",
+    "homepage_url": "https://arxiv.org/list/cs.LG/recent",
+    "fallback_urls": [],
+    "category": "研究论文",
+    "enabled": true
+  },
+  {
+    "name": "Arxiv CS CL",
+    "url": "https://export.arxiv.org/rss/cs.CL",
+    "homepage_url": "https://arxiv.org/list/cs.CL/recent",
+    "fallback_urls": [],
+    "category": "研究论文",
+    "enabled": true
+  }
+]

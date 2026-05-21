@@ -208,8 +208,6 @@ def run_daily_report(settings: Settings) -> Path:
         # 采集 RSS 新闻，并记录采集数量和失败源数量。
         with trace.span("collect_news") as span:
             # collect_news 会逐个请求 RSS 源，并返回成功解析的新闻和错误列表。
-            source_health_path = settings.raw_data_dir.parent / "source_health.json"
-            source_plan_path = settings.raw_data_dir.parent / "source_plan.json"
             items, errors = collect_news(
                 # 要采集的信息源列表。
                 sources,
@@ -217,8 +215,6 @@ def run_daily_report(settings: Settings) -> Path:
                 limit_per_source=settings.max_items_per_source,
                 # 网络请求超时时间。
                 timeout=settings.request_timeout,
-                source_health_path=source_health_path,
-                source_plan_path=source_plan_path,
             )
 
             # 在 trace 里记录原始新闻条数。
@@ -226,8 +222,6 @@ def run_daily_report(settings: Settings) -> Path:
 
             # 在 trace 里记录采集失败的信息源数量。
             span.metrics["source_errors"] = len(errors)
-            span.metrics["source_health_path"] = str(source_health_path)
-            span.metrics["source_plan_path"] = str(source_plan_path)
 
         # 把原始采集数量写入 run_state。
         state.raw_item_count = len(items)
