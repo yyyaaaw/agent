@@ -49,23 +49,31 @@ _LLM_USAGE_RECORDS: list[dict[str, int | float | str | bool]] = []
 
 
 def reset_llm_usage() -> None:
-    """Clear in-process LLM usage records for a new agent run."""
+    """清空当前进程里的 LLM 用量记录。
+
+    run_daily_report 每次开始运行时都会调用它，避免上一轮日报的 token 统计
+    混入本轮 trace。
+    """
 
     _LLM_USAGE_RECORDS.clear()
 
 
 def get_llm_usage_records() -> list[dict[str, int | float | str | bool]]:
-    """Return a copy of recorded LLM usage calls."""
+    """返回 LLM 调用用量记录的拷贝。"""
 
+    # 返回拷贝而不是原列表，避免外部调用者误改全局记录。
     return [dict(record) for record in _LLM_USAGE_RECORDS]
 
 
 def summarize_llm_usage(
     records: list[dict[str, int | float | str | bool]] | None = None,
 ) -> dict[str, int | float]:
-    """Summarize LLM usage records for trace and evaluation."""
+    """汇总 LLM 用量，供 trace 和离线评估使用。"""
 
+    # 如果传入 records，就汇总传入列表；否则汇总当前进程全局记录。
     selected_records = records if records is not None else _LLM_USAGE_RECORDS
+
+    # DeepSeek usage 字段可能缺失，所以每项都用 0 兜底。
     return {
         "llm_call_count": len(selected_records),
         "llm_usage_available_count": sum(1 for record in selected_records if record.get("usage_available")),
@@ -91,13 +99,16 @@ def llm_usage_delta(
     before: dict[str, int | float],
     after: dict[str, int | float] | None = None,
 ) -> dict[str, int | float]:
-    """Return the numeric usage delta between two summaries."""
+    """计算两次 LLM 用量汇总之间的差值。"""
 
     after_summary = after or summarize_llm_usage()
     delta: dict[str, int | float] = {}
     for key, after_value in after_summary.items():
+        # before 可能没有某个新增指标，缺失时按 0 计算。
         before_value = before.get(key, 0)
         value = float(after_value) - float(before_value)
+
+        # 成本保留 6 位小数；token/call 数量保持整数。
         if key == "llm_estimated_cost_usd":
             delta[key] = round(value, 6)
         else:
@@ -106,12 +117,14 @@ def llm_usage_delta(
 
 
 def record_llm_usage(settings: Settings, debug_name: str, result: dict) -> None:
-    """Record token usage returned by the API response."""
+    """记录 DeepSeek API 响应里的 token 用量。"""
 
+    # DeepSeek 响应的 usage 字段通常包含 prompt/completion/total tokens。
     usage = result.get("usage", {})
     usage_available = isinstance(usage, dict) and bool(usage)
     usage_payload = usage if isinstance(usage, dict) else {}
 
+    # 各字段都做 int 转换和 0 兜底，避免供应商返回空值导致统计失败。
     prompt_tokens = int(usage_payload.get("prompt_tokens", 0) or 0)
     completion_tokens = int(usage_payload.get("completion_tokens", 0) or 0)
     raw_total_tokens = usage_payload.get("total_tokens")
@@ -121,6 +134,7 @@ def record_llm_usage(settings: Settings, debug_name: str, result: dict) -> None:
 
     _LLM_USAGE_RECORDS.append(
         {
+            # debug_name 对应保存的 prompt 文件名，方便从用量反查是哪一次调用。
             "debug_name": debug_name,
             "model": settings.deepseek_model,
             "usage_available": usage_available,
@@ -135,15 +149,16 @@ def record_llm_usage(settings: Settings, debug_name: str, result: dict) -> None:
 
 
 def estimate_llm_cost(settings: Settings, prompt_tokens: int, completion_tokens: int) -> float:
-    """Estimate call cost using user-configured per-1M-token prices."""
+    """按用户配置的每百万 token 单价估算调用成本。"""
 
+    # 单价默认是 0，避免把会变化的供应商价格硬编码进项目。
     input_cost = prompt_tokens / 1_000_000 * settings.deepseek_input_price_per_1m_tokens
     output_cost = completion_tokens / 1_000_000 * settings.deepseek_output_price_per_1m_tokens
     return round(input_cost + output_cost, 6)
 
 
 def _to_float(value: object, default: float = 0.0) -> float:
-    """Convert provider string/number fields to float."""
+    """把供应商返回的字符串/数字字段安全转换为 float。"""
 
     try:
         return float(value)
@@ -155,8 +170,9 @@ def _unavailable_balance(
     settings: Settings,
     error: str,
 ) -> dict[str, int | float | str | bool]:
-    """Return a normalized unavailable balance payload."""
+    """生成统一格式的“余额不可用”结果。"""
 
+    # 即使余额接口失败，也返回完整字段，避免 trace/evaluation 读取时报 KeyError。
     return {
         "balance_available": False,
         "balance_is_available": False,
@@ -173,9 +189,11 @@ def parse_deepseek_balance(
     payload: dict,
     preferred_currency: str = "CNY",
 ) -> dict[str, int | float | str | bool]:
-    """Normalize DeepSeek balance API payload for trace metrics."""
+    """把 DeepSeek 余额接口响应归一化成 trace metrics。"""
 
     balance_infos = payload.get("balance_infos", [])
+
+    # 没有 balance_infos 时无法计算真实扣费，只能记录不可用原因。
     if not isinstance(balance_infos, list) or not balance_infos:
         return {
             "balance_available": False,
@@ -188,6 +206,7 @@ def parse_deepseek_balance(
             "balance_error": "no_balance_info",
         }
 
+    # 优先选择用户配置的币种，例如 CNY；找不到时退回第一条可解析余额。
     normalized_currency = preferred_currency.strip().upper() or "CNY"
     selected = None
     for entry in balance_infos:
@@ -200,6 +219,7 @@ def parse_deepseek_balance(
     if selected is None:
         selected = next((entry for entry in balance_infos if isinstance(entry, dict)), None)
 
+    # 如果列表里没有可解析对象，也返回统一不可用结构。
     if not isinstance(selected, dict):
         return {
             "balance_available": False,
@@ -212,6 +232,7 @@ def parse_deepseek_balance(
             "balance_error": "no_parseable_balance_info",
         }
 
+    # total_balance / granted_balance 等字段可能是字符串，这里统一转 float。
     currency = str(selected.get("currency", normalized_currency)).strip().upper() or normalized_currency
     return {
         "balance_available": bool(payload.get("is_available", False)),
@@ -226,11 +247,13 @@ def parse_deepseek_balance(
 
 
 def fetch_deepseek_balance(settings: Settings) -> dict[str, int | float | str | bool]:
-    """Fetch DeepSeek account balance without failing the main agent run."""
+    """读取 DeepSeek 账户余额，但不让余额读取失败拖垮主流程。"""
 
+    # 没有 API Key 时无法请求余额接口。
     if not settings.deepseek_api_key:
         return _unavailable_balance(settings, "missing_api_key")
 
+    # 余额接口使用 GET，并通过 Authorization Bearer 鉴权。
     request = urllib.request.Request(
         DEEPSEEK_BALANCE_URL,
         headers={
@@ -241,6 +264,7 @@ def fetch_deepseek_balance(settings: Settings) -> dict[str, int | float | str | 
     )
 
     try:
+        # 和聊天接口一样使用 request_timeout，避免余额接口卡住整个日报流程。
         with urllib.request.urlopen(request, timeout=settings.request_timeout) as response:
             body = response.read().decode("utf-8")
         payload = json.loads(body)
@@ -256,6 +280,8 @@ def fetch_deepseek_balance(settings: Settings) -> dict[str, int | float | str | 
 
     if not isinstance(payload, dict):
         return _unavailable_balance(settings, "balance_payload_not_object")
+
+    # 成功拿到 dict 后交给 parse_deepseek_balance 做字段归一化。
     return parse_deepseek_balance(payload, settings.deepseek_cost_currency)
 
 
@@ -264,8 +290,9 @@ def deepseek_balance_delta(
     before: dict[str, int | float | str | bool],
     after: dict[str, int | float | str | bool],
 ) -> dict[str, int | float | str | bool]:
-    """Compute actual LLM cost from account balance before/after one run."""
+    """用运行前后账户余额差额计算本次 LLM 实际成本。"""
 
+    # before/after 可能包含字符串，所以先统一转 float。
     before_total = _to_float(before.get("balance_total"))
     after_total = _to_float(after.get("balance_total"))
     before_currency = str(before.get("balance_currency", settings.deepseek_cost_currency)).upper()
@@ -283,10 +310,12 @@ def deepseek_balance_delta(
         "llm_balance_error": "",
     }
 
+    # 如果配置不是 balance_delta，就只记录余额信息，不声称拿到了实际成本。
     if settings.deepseek_cost_mode != "balance_delta":
         metrics["llm_balance_error"] = "balance_delta_disabled"
         return metrics
 
+    # 前后余额任一不可用，都不能计算真实成本。
     before_available = bool(before.get("balance_available", False))
     after_available = bool(after.get("balance_available", False))
     if not before_available or not after_available:
@@ -297,15 +326,19 @@ def deepseek_balance_delta(
         metrics["llm_balance_error"] = "; ".join(error for error in errors if error)
         return metrics
 
+    # 币种不一致时不能直接相减。
     if before_currency != after_currency:
         metrics["llm_balance_error"] = f"balance_currency_mismatch:{before_currency}->{after_currency}"
         return metrics
 
     delta = before_total - after_total
+
+    # 如果余额增加，通常表示并发充值/其他任务干扰，不能作为本次成本。
     if delta < 0:
         metrics["llm_balance_error"] = "balance_increased_or_concurrent_activity"
         return metrics
 
+    # 余额差额可用时，标记 actual_cost_available=True。
     metrics["llm_actual_cost_available"] = True
     metrics["llm_actual_cost"] = round(delta, 6)
     metrics["llm_balance_error"] = ""
@@ -333,8 +366,11 @@ def chunk_items(items: list[NewsItem], batch_size: int) -> list[list[NewsItem]]:
 def chunk_events(events: list[NewsEvent], batch_size: int) -> list[list[NewsEvent]]:
     """把事件切成多个批次，保证同一个事件不会被拆到不同 prompt。"""
 
+    # batch_size <= 0 表示不分批。
     if batch_size <= 0:
         return [events]
+
+    # 列表切片每次取 batch_size 个事件。
     return [events[index : index + batch_size] for index in range(0, len(events), batch_size)]
 
 
@@ -370,6 +406,7 @@ def format_event_batch(events: list[NewsEvent]) -> str:
 
     blocks: list[str] = []
     for index, event in enumerate(events, start=1):
+        # 每个事件最多展示前 8 条相关新闻，避免单个事件 prompt 过长。
         item_lines = [
             f"- [{entry.item.source}｜{entry.item.category}] {entry.item.title} ({entry.score} 分)"
             f"\n  发布时间：{entry.item.published or '未知'}"
@@ -498,7 +535,8 @@ def build_final_prompt(
     """构造最终日报 prompt。
 
     第二阶段会把每批候选热点交给 DeepSeek，让它综合成最终日报。
-    history_context 是从数据库检索出的历史背景，用于第一阶段 RAG 增强。
+    history_context 是从数据库检索出的历史背景，会进入最终汇总 prompt，
+    用来帮助模型判断哪些事件是历史趋势延续、哪些是本次新变化。
     """
     # 这里用 enumerate 给每个批次摘要加编号。
     summaries = "\n\n".join(
@@ -690,6 +728,8 @@ def build_event_refinement_prompt(events: list[NewsEvent]) -> str:
     blocks: list[str] = []
     for event in events:
         item_lines = []
+
+        # 每个候选事件只放前 8 条新闻，给 LLM 足够证据，同时控制 token。
         for index, entry in enumerate(event.scored_items[:8], start=1):
             item_lines.append(
                 "\n".join(
@@ -747,11 +787,14 @@ def build_event_refinement_prompt(events: list[NewsEvent]) -> str:
 def parse_event_refinement_json(text: str) -> list[dict]:
     """从 LLM 输出中解析事件整合 JSON。"""
     stripped = text.strip()
+
+    # 兼容模型输出 ```json ... ``` 代码块的情况。
     if stripped.startswith("```"):
         stripped = stripped.strip("`")
         if stripped.lower().startswith("json"):
             stripped = stripped[4:].strip()
 
+    # 只截取最外层 JSON 对象，避免模型前后加解释文字导致解析失败。
     start = stripped.find("{")
     end = stripped.rfind("}")
     if start < 0 or end < start:
@@ -762,6 +805,7 @@ def parse_event_refinement_json(text: str) -> list[dict]:
     except json.JSONDecodeError:
         return []
 
+    # 只接受 {"events": [...]} 这种结构。
     events = payload.get("events", [])
     if not isinstance(events, list):
         return []
@@ -776,10 +820,12 @@ def refine_events_with_llm(
     if not events:
         return [], ["LLM事件整合跳过：没有候选事件。"]
 
+    # 先构造结构化 JSON 输出要求的 prompt。
     prompt = build_event_refinement_prompt(events)
     response = call_deepseek(settings, prompt, "event_refinement_prompt")
     event_specs = parse_event_refinement_json(response)
 
+    # 解析失败时保守保留 embedding 粗聚类结果，避免丢新闻。
     if not event_specs:
         return events, ["LLM事件整合未产出可解析 JSON，已保留 embedding 粗聚类结果。"]
 
@@ -791,6 +837,7 @@ def refine_events_with_llm(
         if not isinstance(event_ids, list):
             continue
 
+        # LLM 返回的 event_ids/title/summary 都先转成字符串并清理空白。
         normalized_event_ids = [str(event_id) for event_id in event_ids]
         title = str(spec.get("title", "")).strip()
         summary = str(spec.get("summary", "")).strip()
@@ -805,6 +852,7 @@ def refine_events_with_llm(
     if not groups:
         return events, ["LLM事件整合结果为空，已保留 embedding 粗聚类结果。"]
 
+    # 根据 LLM 分组重建事件对象，未被 LLM 覆盖的候选会在 rebuild 中保守保留。
     refined_events = rebuild_events_from_groups(groups, events)
     decision_lines.append(f"LLM事件整合结果：{len(events)} 个候选事件 -> {len(refined_events)} 个最终事件。")
     return refined_events, decision_lines

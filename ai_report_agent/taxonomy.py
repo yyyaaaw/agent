@@ -7,15 +7,29 @@
 
 from __future__ import annotations
 
+# json 用来读取 data/event_taxonomy 下的词典文件。
 import json
+
+# re 用于别名归一化、中文字符判断和边界匹配。
 import re
+
+# dataclass 用于定义词典在内存中的结构。
 from dataclasses import dataclass
+
+# lru_cache 缓存词典，避免每次抽取实体都重复读 JSON。
 from functools import lru_cache
+
+# Path 用于定位项目根目录和词典目录。
 from pathlib import Path
+
+# Any 用于描述 JSON 文件中不固定的值类型。
 from typing import Any
 
 
+# 项目根目录。
 ROOT_DIR = Path(__file__).resolve().parents[1]
+
+# 默认事件词典目录。基础词典、generated、overrides 都在这里。
 DEFAULT_TAXONOMY_DIR = ROOT_DIR / "data" / "event_taxonomy"
 
 
@@ -107,11 +121,14 @@ def normalize_alias(value: str) -> str:
 def match_aliases(text: str, aliases: dict[str, str]) -> set[str]:
     """用别名表匹配文本，返回标准名称集合。"""
 
+    # 文本先统一小写和空白，保证 alias 匹配更稳定。
     normalized = normalize_alias(text or "")
     if not normalized:
         return set()
 
     matches: set[str] = set()
+
+    # 长别名优先匹配，避免短别名先命中导致解释不清。
     for alias, canonical in sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True):
         if alias and alias_in_text(alias, normalized):
             matches.add(canonical)
@@ -121,9 +138,11 @@ def match_aliases(text: str, aliases: dict[str, str]) -> set[str]:
 def alias_in_text(alias: str, normalized_text: str) -> bool:
     """判断一个别名是否出现在已标准化文本中。"""
 
+    # 中文没有英文单词边界概念，直接 substring 匹配。
     if contains_cjk(alias):
         return alias in normalized_text
 
+    # 英文别名用负向边界，避免 "ai" 命中 "paid" 这类误匹配。
     pattern = re.escape(alias).replace(r"\ ", r"\s+")
     return re.search(rf"(?<![a-z0-9]){pattern}(?![a-z0-9])", normalized_text) is not None
 
@@ -138,28 +157,40 @@ def contains_cjk(value: str) -> bool:
 def get_event_taxonomy(taxonomy_dir: Path = DEFAULT_TAXONOMY_DIR) -> EventTaxonomy:
     """加载并缓存事件词典。"""
 
+    # 基础词典：人工维护的主要规则。
     entity_payload = read_json(taxonomy_dir / "entities.json")
     product_payload = read_json(taxonomy_dir / "products.json")
     action_payload = read_json(taxonomy_dir / "action_aliases.json")
     stopword_payload = read_json(taxonomy_dir / "stopwords.json")
     pattern_payload = read_json(taxonomy_dir / "patterns.json")
+
+    # generated 词典：taxonomy_builder 自动发现的高置信别名。
     generated_entity_payload = read_json(taxonomy_dir / "generated" / "entities.generated.json")
     generated_product_payload = read_json(taxonomy_dir / "generated" / "products.generated.json")
     generated_action_payload = read_json(taxonomy_dir / "generated" / "action_aliases.generated.json")
+
+    # overrides：人工确认的新增别名、修正和 blocked_aliases。
     override_payload = read_json(taxonomy_dir / "overrides" / "aliases.override.json")
 
+    # 动作需要保留 label、aliases 和 similarity，所以先合并完整 spec。
     action_specs = merge_action_specs(
         read_mapping(action_payload.get("actions")),
         read_mapping(generated_action_payload.get("actions")),
         read_mapping(override_payload.get("actions")),
     )
     action_aliases = read_action_aliases(action_specs)
+
+    # label 用于把 action_id 展示成人类可读中文。
     action_labels = {
         action_id: str(spec.get("label", action_id))
         for action_id, spec in action_specs.items()
         if isinstance(spec, dict)
     }
+
+    # blocked_aliases 用于人工屏蔽误命中，优先级最高。
     blocked_aliases = {normalize_alias(value) for value in read_string_set(override_payload.get("blocked_aliases"))}
+
+    # entity/product 别名按基础 -> generated -> override 顺序合并，后者可以覆盖前者。
     entity_aliases = merge_alias_maps(
         read_named_aliases(entity_payload.get("entities")),
         read_named_aliases(generated_entity_payload.get("entities")),
@@ -170,6 +201,8 @@ def get_event_taxonomy(taxonomy_dir: Path = DEFAULT_TAXONOMY_DIR) -> EventTaxono
         read_named_aliases(generated_product_payload.get("products")),
         read_named_aliases(override_payload.get("products")),
     )
+
+    # 把人工屏蔽的 alias 从所有别名表中删除。
     action_aliases = {
         alias: canonical
         for alias, canonical in action_aliases.items()
@@ -186,6 +219,7 @@ def get_event_taxonomy(taxonomy_dir: Path = DEFAULT_TAXONOMY_DIR) -> EventTaxono
         if alias not in blocked_aliases
     }
 
+    # 构造不可变 EventTaxonomy 对象，供 events.py 和 taxonomy_builder.py 使用。
     return EventTaxonomy(
         entity_aliases=entity_aliases,
         product_aliases=product_aliases,
@@ -251,8 +285,10 @@ def merge_action_specs(*spec_maps: dict[str, Any]) -> dict[str, dict[str, Any]]:
     merged: dict[str, dict[str, Any]] = {}
     for spec_map in spec_maps:
         for action_id, raw_spec in spec_map.items():
+            # 每个 action 至少有 label 和 aliases 两个字段。
             current = merged.setdefault(action_id, {"label": action_id, "aliases": []})
             if isinstance(raw_spec, list):
+                # 兼容旧格式：{"launch": ["发布", "推出"]}。
                 current["aliases"] = unique_strings([*read_string_list(current.get("aliases")), *read_string_list(raw_spec)])
                 continue
             if not isinstance(raw_spec, dict):
@@ -260,6 +296,7 @@ def merge_action_specs(*spec_maps: dict[str, Any]) -> dict[str, dict[str, Any]]:
             label = raw_spec.get("label")
             if label:
                 current["label"] = str(label)
+            # 新格式：{"launch": {"label": "发布", "aliases": [...]}}。
             current["aliases"] = unique_strings(
                 [
                     *read_string_list(current.get("aliases")),
@@ -295,6 +332,7 @@ def read_similarity_matrix(value: object) -> dict[str, dict[str, float]]:
                 score = float(raw_score)
             except (TypeError, ValueError):
                 continue
+            # 相似度强制限制在 0-1，避免配置错误放大聚类权重。
             targets[right] = max(0.0, min(score, 1.0))
         matrix[left] = targets
     return matrix

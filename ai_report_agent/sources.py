@@ -316,18 +316,23 @@ FALLBACK_SOURCES = [
 ]
 
 def parse_string_list(value: object) -> list[str]:
-    """Return a clean string list from optional JSON list values."""
+    """把可选 JSON 列表安全转换成清理后的字符串列表。"""
+    # sources.json 中的 fallback_urls/tags 可能缺失或写错类型；这里统一兜底为空列表。
     if not isinstance(value, list):
         return []
+
+    # str(item).strip() 可以兼容数字等非字符串值，同时过滤空字符串。
     return [str(item).strip() for item in value if str(item).strip()]
 
 
 def parse_priority(value: object, default: int = 3) -> int:
-    """Read source priority and keep it in a small, predictable range."""
+    """读取来源优先级，并限制在 1-5 的可控范围。"""
     try:
         priority = int(value)
     except (TypeError, ValueError):
         priority = default
+
+    # priority 太大或太小都会破坏评分权重，所以这里强制夹到 1-5。
     return max(1, min(5, priority))
 
 
@@ -798,7 +803,8 @@ def collect_one_source(
 
 
 def short_error_text(error: str, max_chars: int = 160) -> str:
-    """Keep progress output readable while detailed errors stay in JSON files."""
+    """压缩错误文本，让终端进度输出保持可读。"""
+    # 详细错误仍会写入 JSON；终端只展示短摘要，避免一行太长。
     cleaned = re.sub(r"\s+", " ", error or "").strip()
     if len(cleaned) <= max_chars:
         return cleaned
@@ -813,10 +819,11 @@ def print_source_progress(
     item_count: int = 0,
     error: str = "",
 ) -> None:
-    """Print one concise RSS collection progress line for the CLI."""
+    """打印单个 RSS 来源的简洁采集进度。"""
     prefix = f"[{index}/{total}] {source.name}"
     metadata = f"{source.region}/{source.source_type}/{source.language}"
 
+    # status 分为 start/success/failure 三种，保持命令行输出稳定。
     if status == "start":
         print(f"{prefix} ({metadata}) ...")
     elif status == "success":
@@ -829,10 +836,13 @@ def build_source_plan(
     sources: list[NewsSource],
     health: dict[str, dict[str, object]],
 ) -> dict[str, object]:
-    """Build lightweight source-planning recommendations from config and health.
+    """根据来源配置和健康状态生成轻量来源规划建议。
 
-    This does not mutate sources.json. It gives the agent a durable planning
-    artifact that can later be reviewed or applied explicitly.
+    这个函数不会修改 sources.json，只会生成一个可复盘的 source_plan.json。
+    它的作用是提示后续是否需要：
+    - 扩充国内/中文来源；
+    - 替换连续失败的来源；
+    - 给高优先级失败来源补备用 RSS。
     """
     region_counts: dict[str, int] = {}
     type_counts: dict[str, int] = {}
@@ -840,10 +850,12 @@ def build_source_plan(
     recommendations: list[dict[str, object]] = []
 
     for source in sources:
+        # 按区域、类型、语言统计来源覆盖。
         region_counts[source.region] = region_counts.get(source.region, 0) + 1
         type_counts[source.source_type] = type_counts.get(source.source_type, 0) + 1
         language_counts[source.language] = language_counts.get(source.language, 0) + 1
 
+        # 读取该来源上次健康状态，用来生成可靠性建议。
         health_entry = health.get(source.name, {})
         try:
             consecutive_failures = int(health_entry.get("consecutive_failures", 0) or 0)
@@ -851,6 +863,7 @@ def build_source_plan(
             consecutive_failures = 0
         last_status = str(health_entry.get("last_status", "unknown") or "unknown")
 
+        # 连续失败很多次时，建议人工考虑停用或替换。
         if consecutive_failures >= 5:
             recommendations.append(
                 {
@@ -860,6 +873,7 @@ def build_source_plan(
                     "priority": "high",
                 }
             )
+        # 高优先级来源最近失败时，建议优先补 fallback URL。
         elif last_status == "failure" and source.priority >= 4:
             recommendations.append(
                 {
@@ -874,6 +888,7 @@ def build_source_plan(
     zh_count = language_counts.get("zh", 0)
     general_count = type_counts.get("general_news", 0) + type_counts.get("general_tech", 0)
 
+    # 国内/中文来源不足时提示扩充，避免信息源长期偏海外。
     if china_count < 6 or zh_count < 6:
         recommendations.append(
             {
@@ -884,6 +899,7 @@ def build_source_plan(
             }
         )
 
+    # 综合新闻源不足时提示扩充，避免只看公司官方博客。
     if general_count < 5:
         recommendations.append(
             {
@@ -905,7 +921,7 @@ def build_source_plan(
 
 
 def save_source_plan(plan: dict[str, object], path: Path) -> None:
-    """Save source-planning recommendations next to the current run data."""
+    """保存来源规划建议文件。"""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(plan, ensure_ascii=False, indent=2),

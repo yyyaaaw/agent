@@ -1,16 +1,45 @@
-"""Deterministic regression evaluation for core agent behavior."""
+"""核心 Agent 行为的确定性回归评估。
+
+离线评估 evaluation.py 关注“真实运行是否健康”；
+本模块关注“固定输入下，核心规则有没有被改坏”。
+
+这些回归用例不会调用真实 LLM，也不会访问真实网络。
+它们主要覆盖：
+- 去重规则
+- 评分排序
+- critic 本地硬规则
+- 修订完整性校验
+- 事件词典抽取与事件合并判断
+- 自动词典构建
+"""
 
 from __future__ import annotations
 
+# json 用来读取回归用例和写出评估报告。
 import json
+
+# shutil 用于把默认词典 fixture 复制到临时目录。
 import shutil
+
+# tempfile 用于创建临时词典目录，避免测试写入真实业务词典。
 import tempfile
+
+# asdict 把 dataclass 转成可 JSON 序列化的 dict；dataclass 定义结果结构。
 from dataclasses import asdict, dataclass
+
+# date/datetime 用于本地 critic 日期校验和报告时间戳。
 from datetime import date, datetime
+
+# Path 用来处理用例文件、输出报告和临时词典路径。
 from pathlib import Path
+
+# Any 表示 JSON 中可能出现的任意类型。
 from typing import Any
 
+# Settings 提供 data/eval 输出目录；ROOT_DIR 用于定位默认 regression_cases.json。
 from ai_report_agent.config import Settings, ROOT_DIR
+
+# critic 相关函数用于检查报告硬规则、修订计划解析和修订完整性。
 from ai_report_agent.critic import (
     ReportSection,
     local_critic_issues,
@@ -20,7 +49,11 @@ from ai_report_agent.critic import (
     validate_revision_report,
     validate_section_revision,
 )
+
+# 去重模块是回归评估重点之一。
 from ai_report_agent.deduplicator import deduplicate_items
+
+# 事件模块提供词典抽取后的特征结构和两两合并判断。
 from ai_report_agent.events import (
     EventFeatures,
     extract_actions,
@@ -29,19 +62,30 @@ from ai_report_agent.events import (
     extract_products,
     should_merge_pair,
 )
+
+# 默认用户偏好和 UserProfile 用于构造评分用例。
 from ai_report_agent.profile import DEFAULT_PROFILE, UserProfile
+
+# score_items 用于验证固定新闻输入下的排序是否符合预期。
 from ai_report_agent.scorer import score_items
+
+# NewsItem 是回归用例中新闻条目的标准结构。
 from ai_report_agent.sources import NewsItem
+
+# 词典读写工具用于构造临时词典目录和检查自动生成结果。
 from ai_report_agent.taxonomy import DEFAULT_TAXONOMY_DIR, read_json
+
+# update_event_taxonomy_from_items 用于测试自动发现词典候选。
 from ai_report_agent.taxonomy_builder import update_event_taxonomy_from_items
 
 
+# 默认回归用例文件。用户也可以传入其他 cases_path。
 DEFAULT_CASES_PATH = ROOT_DIR / "evals" / "regression_cases.json"
 
 
 @dataclass(frozen=True)
 class RegressionCaseResult:
-    """One deterministic regression case result."""
+    """单个确定性回归用例的结果。"""
 
     case_id: str
     case_type: str
@@ -54,7 +98,7 @@ class RegressionCaseResult:
 
 @dataclass(frozen=True)
 class RegressionSummary:
-    """Portfolio summary for regression cases."""
+    """整批回归用例的汇总结果。"""
 
     generated_at: str
     cases_path: str
@@ -68,16 +112,19 @@ def run_regression_evaluation(
     settings: Settings,
     cases_path: Path = DEFAULT_CASES_PATH,
 ) -> Path:
-    """Run fixed regression cases and save Markdown/JSON reports."""
+    """运行固定回归用例，并保存 Markdown/JSON 报告。"""
 
+    # 读取 evals/regression_cases.json。
     payload = load_cases(cases_path)
     cases = payload.get("cases", [])
     if not isinstance(cases, list):
         raise RuntimeError(f"Invalid regression cases file: {cases_path}")
 
+    # 逐个执行 case；非 dict 的异常配置会被跳过。
     results = [evaluate_case(case) for case in cases if isinstance(case, dict)]
     summary = build_summary(results, cases_path)
 
+    # 输出到 data/eval，与普通离线评估报告放在一起。
     output_dir = settings.raw_data_dir.parent / "eval"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -104,7 +151,7 @@ def run_regression_evaluation(
 
 
 def load_cases(cases_path: Path) -> dict[str, Any]:
-    """Load regression case JSON."""
+    """读取回归用例 JSON 文件。"""
 
     if not cases_path.exists():
         raise RuntimeError(f"Regression cases file not found: {cases_path}")
@@ -115,8 +162,9 @@ def load_cases(cases_path: Path) -> dict[str, Any]:
 
 
 def evaluate_case(case: dict[str, Any]) -> RegressionCaseResult:
-    """Dispatch one regression case."""
+    """调度并执行单个回归用例。"""
 
+    # 每个 case 都需要 id/type/description/expect；缺失时给兜底值。
     case_id = str(case.get("id", "unknown"))
     case_type = str(case.get("type", "unknown"))
     description = str(case.get("description", ""))
@@ -125,9 +173,11 @@ def evaluate_case(case: dict[str, Any]) -> RegressionCaseResult:
         expected = {}
 
     try:
+        # 先根据 type 运行具体评估逻辑，再把 actual 和 expect 比较。
         actual = evaluate_case_by_type(case_type, case)
         passed, details = compare_expected(case_type, expected, actual)
     except Exception as exc:
+        # 回归评估不让单个 case 的异常中断整批评估，而是记录为失败。
         actual = {"error": str(exc)}
         passed = False
         details = f"Case raised {type(exc).__name__}: {exc}"
@@ -144,8 +194,9 @@ def evaluate_case(case: dict[str, Any]) -> RegressionCaseResult:
 
 
 def evaluate_case_by_type(case_type: str, case: dict[str, Any]) -> dict[str, Any]:
-    """Run the concrete evaluator for a supported case type."""
+    """根据 case_type 调用具体评估函数。"""
 
+    # 这里显式分支比动态反射更可读，也更适合面试讲解。
     if case_type == "deduplication":
         return evaluate_deduplication_case(case)
     if case_type == "scoring_order":
@@ -168,8 +219,9 @@ def evaluate_case_by_type(case_type: str, case: dict[str, Any]) -> dict[str, Any
 
 
 def evaluate_deduplication_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate deterministic deduplication behavior."""
+    """评估确定性去重行为。"""
 
+    # read_case_items 会把 JSON fixture 转成 NewsItem。
     items = read_case_items(case)
     result = deduplicate_items([item for _, item in items])
     return {
@@ -180,11 +232,13 @@ def evaluate_deduplication_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def evaluate_scoring_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate deterministic scoring order behavior."""
+    """评估固定输入下的评分排序。"""
 
     items = read_case_items(case)
     profile = read_case_profile(case.get("profile"))
     scored = score_items([item for _, item in items], profile)
+
+    # item_id_by_key 用来把 ScoredNewsItem 映射回 fixture 中的人类可读 id。
     item_id_by_key = {item_key(item): item_id for item_id, item in items}
     ordered_ids = [item_id_by_key[item_key(entry.item)] for entry in scored]
     scores = {
@@ -199,7 +253,7 @@ def evaluate_scoring_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def evaluate_local_critic_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate local critic hard-rule checks."""
+    """评估 critic 的本地硬规则检查。"""
 
     today = parse_case_date(str(case.get("today", date.today().isoformat())))
     report = str(case.get("report", ""))
@@ -211,7 +265,7 @@ def evaluate_local_critic_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def evaluate_revision_validation_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate revision completeness gate."""
+    """评估整篇报告修订完整性闸门。"""
 
     original_report = build_report_text(case.get("original_report"))
     revised_report = str(case.get("revised_report", ""))
@@ -225,7 +279,7 @@ def evaluate_revision_validation_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def evaluate_section_revision_validation_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate section-level revision gate."""
+    """评估单区块修订完整性闸门。"""
 
     section_title = str(case.get("section_title", "今日摘要"))
     original_section = ReportSection(
@@ -243,7 +297,7 @@ def evaluate_section_revision_validation_case(case: dict[str, Any]) -> dict[str,
 
 
 def evaluate_revision_plan_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate structured revision plan parsing."""
+    """评估结构化修订计划解析。"""
 
     report = build_report_text(case.get("report"))
     plan_response = str(case.get("plan_response", ""))
@@ -259,14 +313,14 @@ def evaluate_revision_plan_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def evaluate_should_revise_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate critic decision parsing."""
+    """评估 critic PASS/FAIL 文本解析。"""
 
     critique = str(case.get("critique", ""))
     return {"should_revise": should_revise(critique)}
 
 
 def evaluate_event_taxonomy_pair_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate taxonomy extraction and pairwise event merge decisions without embeddings API."""
+    """不调用 embedding API，评估词典抽取和两两事件合并判断。"""
 
     raw_items = case.get("items", [])
     if not isinstance(raw_items, list):
@@ -279,6 +333,8 @@ def evaluate_event_taxonomy_pair_case(case: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("Each event taxonomy item must be an object")
         item_id = str(raw_item.get("id", f"item_{index}"))
         text = str(raw_item.get("text", ""))
+
+        # 用例中直接提供向量，避免测试依赖本地 BGE 模型或网络。
         embedding = read_float_list(raw_item.get("embedding"), [1.0, 0.0, 0.0])
         products = extract_products(text)
         entities = extract_entities(text) | products
@@ -309,6 +365,8 @@ def evaluate_event_taxonomy_pair_case(case: dict[str, Any]) -> dict[str, Any]:
         right_id = str(raw_pair.get("right", ""))
         if left_id not in features_by_id or right_id not in features_by_id:
             raise ValueError(f"Unknown pair ids: {left_id}, {right_id}")
+
+        # should_merge_pair 是事件粗聚类的核心规则，这里直接验证它的布尔结果和原因。
         should_merge, reason = should_merge_pair(
             features_by_id[left_id],
             features_by_id[right_id],
@@ -326,9 +384,11 @@ def evaluate_event_taxonomy_pair_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def evaluate_taxonomy_builder_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate taxonomy auto-generation in a temporary taxonomy directory."""
+    """在临时词典目录中评估自动词典生成。"""
 
     items = [item for _, item in read_case_items(case)]
+
+    # 必须使用临时目录，避免回归测试污染真实 data/event_taxonomy。
     with tempfile.TemporaryDirectory() as tmp_dir:
         taxonomy_dir = Path(tmp_dir) / "event_taxonomy"
         prepare_temp_taxonomy_dir(taxonomy_dir)
@@ -361,8 +421,9 @@ def compare_expected(
     expected: dict[str, Any],
     actual: dict[str, Any],
 ) -> tuple[bool, str]:
-    """Compare expected values with actual case output."""
+    """比较 expect 和 actual，返回是否通过以及解释文本。"""
 
+    # checks 里每一项都是 (是否通过, 说明)。
     checks: list[tuple[bool, str]] = []
 
     if case_type == "deduplication":
@@ -374,6 +435,8 @@ def compare_expected(
         scores = actual.get("scores", {})
         if not isinstance(scores, dict):
             scores = {}
+
+        # above_ids 表示 top_id 的分数应高于这些 id。
         for loser_id in expected.get("above_ids", []):
             winner_score = int(scores.get(top_id, 0) or 0)
             loser_score = int(scores.get(str(loser_id), 0) or 0)
@@ -421,7 +484,7 @@ def equal_check(
     expected: dict[str, Any],
     actual: dict[str, Any],
 ) -> tuple[bool, str]:
-    """Compare one key in expected and actual dictionaries."""
+    """比较 expected/actual 字典中的单个字段。"""
 
     expected_value = expected.get(key)
     actual_value = actual.get(key)
@@ -429,7 +492,7 @@ def equal_check(
 
 
 def read_case_items(case: dict[str, Any]) -> list[tuple[str, NewsItem]]:
-    """Build NewsItem objects from case JSON."""
+    """从 case JSON 构造带 fixture id 的 NewsItem 列表。"""
 
     raw_items = case.get("items", [])
     if not isinstance(raw_items, list):
@@ -445,7 +508,7 @@ def read_case_items(case: dict[str, Any]) -> list[tuple[str, NewsItem]]:
 
 
 def read_news_item(raw_item: dict[str, Any]) -> NewsItem:
-    """Build one NewsItem from JSON."""
+    """从 JSON 对象构造一条 NewsItem。"""
 
     return NewsItem(
         source=str(raw_item.get("source", "")),
@@ -463,7 +526,7 @@ def read_news_item(raw_item: dict[str, Any]) -> NewsItem:
 
 
 def read_case_profile(raw_profile: object) -> UserProfile:
-    """Build UserProfile from case JSON, falling back to defaults."""
+    """从 case JSON 构造 UserProfile，缺失时使用默认偏好。"""
 
     if not isinstance(raw_profile, dict):
         return DEFAULT_PROFILE
@@ -480,7 +543,7 @@ def read_case_profile(raw_profile: object) -> UserProfile:
 
 
 def read_string_list(value: object, default: list[str]) -> list[str]:
-    """Read a JSON value as a string list."""
+    """把 JSON 值安全读取为字符串列表。"""
 
     if not isinstance(value, list):
         return default
@@ -488,7 +551,7 @@ def read_string_list(value: object, default: list[str]) -> list[str]:
 
 
 def read_float_list(value: object, default: list[float]) -> list[float]:
-    """Read a JSON value as a float list."""
+    """把 JSON 值安全读取为浮点数列表。"""
 
     if not isinstance(value, list):
         return default
@@ -505,7 +568,7 @@ def event_taxonomy_checks(
     expected: dict[str, Any],
     actual: dict[str, Any],
 ) -> list[tuple[bool, str]]:
-    """Compare event taxonomy extraction and merge expectations."""
+    """比较事件词典抽取和合并判断结果。"""
 
     checks: list[tuple[bool, str]] = []
     actual_items = actual.get("items", {})
@@ -544,7 +607,7 @@ def taxonomy_builder_checks(
     expected: dict[str, Any],
     actual: dict[str, Any],
 ) -> list[tuple[bool, str]]:
-    """Compare taxonomy builder generated aliases and review hints."""
+    """比较自动词典生成结果和人工复核提示。"""
 
     checks: list[tuple[bool, str]] = []
     for key in ["auto_product_aliases", "auto_action_aliases"]:
@@ -584,7 +647,7 @@ def taxonomy_builder_checks(
 
 
 def read_mapping(value: object) -> dict[str, Any]:
-    """Read a JSON value as a dictionary."""
+    """把 JSON 值安全读取为字典。"""
 
     if not isinstance(value, dict):
         return {}
@@ -592,8 +655,9 @@ def read_mapping(value: object) -> dict[str, Any]:
 
 
 def prepare_temp_taxonomy_dir(taxonomy_dir: Path) -> None:
-    """Prepare a clean taxonomy fixture directory for regression tests."""
+    """为回归测试准备干净的临时词典目录。"""
 
+    # 复制基础词典，保证测试环境和真实词典结构一致。
     taxonomy_dir.mkdir(parents=True, exist_ok=True)
     for filename in [
         "entities.json",
@@ -606,6 +670,8 @@ def prepare_temp_taxonomy_dir(taxonomy_dir: Path) -> None:
 
     (taxonomy_dir / "generated").mkdir(parents=True, exist_ok=True)
     (taxonomy_dir / "overrides").mkdir(parents=True, exist_ok=True)
+
+    # generated/overrides 写入空结构，让自动词典生成逻辑可以正常读写。
     (taxonomy_dir / "generated" / "entities.generated.json").write_text(
         json.dumps({"generated_at": "", "entities": {}}, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -629,7 +695,7 @@ def prepare_temp_taxonomy_dir(taxonomy_dir: Path) -> None:
 
 
 def item_key(item: NewsItem) -> tuple[str, str, str, str, str, str]:
-    """Return a stable key for mapping scored items back to fixture IDs."""
+    """返回稳定 key，用于把评分结果映射回 fixture id。"""
 
     return (
         item.source,
@@ -642,14 +708,15 @@ def item_key(item: NewsItem) -> tuple[str, str, str, str, str, str]:
 
 
 def parse_case_date(value: str) -> date:
-    """Parse YYYY-MM-DD test fixture date."""
+    """解析 YYYY-MM-DD 格式的测试日期。"""
 
     return datetime.strptime(value, "%Y-%m-%d").date()
 
 
 def build_report_text(spec: object) -> str:
-    """Build report text from either a string or a compact repeated-section spec."""
+    """根据字符串或紧凑重复区块配置构造报告文本。"""
 
+    # 简单字符串直接作为报告正文使用。
     if isinstance(spec, str):
         return spec
     if not isinstance(spec, dict):
@@ -662,7 +729,7 @@ def build_report_text(spec: object) -> str:
 
 
 def build_summary(results: list[RegressionCaseResult], cases_path: Path) -> RegressionSummary:
-    """Build regression summary."""
+    """构建回归评估汇总。"""
 
     passed_cases = sum(1 for result in results if result.passed)
     total_cases = len(results)
@@ -682,8 +749,9 @@ def build_markdown(
     summary: RegressionSummary,
     results: list[RegressionCaseResult],
 ) -> str:
-    """Render regression results as Markdown."""
+    """把回归评估结果渲染成 Markdown。"""
 
+    # 先输出总体结果，再输出每个 case 的明细。
     lines = [
         "# Agent Regression Eval Report",
         "",
@@ -713,6 +781,7 @@ def build_markdown(
 
     failed_results = [result for result in results if not result.passed]
     if failed_results:
+        # 失败用例单独展开 expected/actual，方便定位回归原因。
         lines.extend(["", "## Failed Cases", ""])
         for result in failed_results:
             lines.extend(
@@ -741,6 +810,6 @@ def build_markdown(
 
 
 def escape_table_text(value: str) -> str:
-    """Escape Markdown table separators."""
+    """转义 Markdown 表格中的竖线和换行。"""
 
     return value.replace("|", "\\|").replace("\n", " ")

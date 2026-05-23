@@ -7,14 +7,28 @@
 
 from __future__ import annotations
 
+# json 用来读写 generated/review 词典文件。
 import json
+
+# re 用来从新闻标题和摘要里抽取模型名、机构名、动作短语。
 import re
+
+# asdict 用于把候选 dataclass 转成 JSON；dataclass/field 定义候选结构。
 from dataclasses import asdict, dataclass, field
+
+# datetime 用来给自动生成文件写入 generated_at。
 from datetime import datetime
+
+# Path 用来处理词典目录路径。
 from pathlib import Path
+
+# Any 用于描述 JSON payload 的不确定结构。
 from typing import Any
 
+# NewsItem 是采集模块产出的标准新闻结构。
 from ai_report_agent.sources import NewsItem
+
+# taxonomy 模块负责加载现有词典、清缓存和读取 JSON。
 from ai_report_agent.taxonomy import (
     DEFAULT_TAXONOMY_DIR,
     clear_event_taxonomy_cache,
@@ -24,6 +38,8 @@ from ai_report_agent.taxonomy import (
 )
 
 
+# 模型名前缀到产品家族的映射。
+# 例如 GPT-5.5、GPT-4o 都可以归到 GPT 产品家族。
 PRODUCT_PREFIX_CANONICAL = {
     "gpt": "GPT",
     "claude": "Claude",
@@ -46,6 +62,8 @@ PRODUCT_PREFIX_CANONICAL = {
     "pangu": "Pangu",
 }
 
+# 动作别名高置信提示词。
+# 命中这些短语时，可以自动映射到现有动作类别，而不必每次人工审核。
 ACTION_ALIAS_HINTS = {
     "launch": [
         "开启内测",
@@ -70,6 +88,8 @@ ACTION_ALIAS_HINTS = {
     "infrastructure": ["量产", "投产", "扩建算力", "训练集群"],
 }
 
+# 含义比较模糊的动作词。
+# 这类词即使命中实体/产品，也不自动写入词典，而是进入 review 文件。
 UNCLEAR_ACTION_TERMS = [
     "布局",
     "押注",
@@ -83,6 +103,7 @@ UNCLEAR_ACTION_TERMS = [
     "转向",
 ]
 
+# 明显过泛的候选词，进入词典只会增加误命中风险。
 GENERIC_CANDIDATES = {
     "人工智能",
     "企业智能",
@@ -132,14 +153,21 @@ def update_event_taxonomy_from_items(
 ) -> TaxonomyUpdateResult:
     """从新闻标题/摘要自动发现词典候选并更新 generated 词典。"""
 
+    # 先加载当前词典，用它判断哪些别名已经存在、哪些命中需要跳过。
     taxonomy = get_event_taxonomy(taxonomy_dir)
+
+    # 收集候选，并把相同 kind/canonical/alias 的重复命中合并。
     buckets = collect_candidate_buckets(items, taxonomy)
+
+    # 高置信候选自动写入 generated；低置信候选写入 review 等人工确认。
     auto_candidates, review_candidates = split_candidates(buckets)
 
+    # 分别写 generated JSON、review JSON 和 Markdown 报告。
     generated_paths = write_generated_taxonomy(auto_candidates, taxonomy_dir)
     review_path = write_review_candidates(review_candidates, taxonomy_dir)
     report_path = write_review_report(auto_candidates, review_candidates, taxonomy_dir)
 
+    # 自动写入 generated 后清空缓存，确保后续事件聚类能立即读到新词典。
     clear_event_taxonomy_cache()
 
     result = TaxonomyUpdateResult(
@@ -161,9 +189,11 @@ def update_event_taxonomy_from_items(
 def collect_candidate_buckets(items: list[NewsItem], taxonomy) -> list[TaxonomyCandidate]:
     """收集候选并把重复命中合并为桶。"""
 
+    # key = (候选类型, 标准名, 别名)，同一个候选多次出现会累计 count。
     buckets: dict[tuple[str, str, str], TaxonomyCandidate] = {}
 
     for item in items:
+        # 只从标题和摘要发现候选，避免来源名/分类名带来误命中。
         text = f"{item.title} {item.summary}"
         example = f"{item.source}: {item.title}"
         for canonical, alias, confidence, reason in discover_product_candidates(text, taxonomy):
@@ -202,14 +232,18 @@ def add_candidate(
 ) -> None:
     """把一次命中加入候选桶。"""
 
+    # 先清理显示形式，例如去掉中英文标点和多余空白。
     cleaned_alias = clean_candidate(alias)
     cleaned_canonical = clean_candidate(canonical or alias)
+
+    # 空值或泛化候选不进入候选桶。
     if not cleaned_alias or is_generic_candidate(cleaned_alias):
         return
 
     key = (kind, cleaned_canonical, cleaned_alias)
     bucket = buckets.get(key)
     if bucket is None:
+        # 第一次命中时创建候选，默认 status=review，后续 split_candidates 再决定是否自动接受。
         bucket = TaxonomyCandidate(
             kind=kind,
             canonical=cleaned_canonical,
@@ -220,6 +254,7 @@ def add_candidate(
         )
         buckets[key] = bucket
 
+    # 重复命中会提高 count，并保留最高置信度。
     bucket.count += 1
     bucket.confidence = max(bucket.confidence, confidence)
     if source not in bucket.sources:
@@ -235,6 +270,7 @@ def discover_product_candidates(text: str, taxonomy) -> list[tuple[str, str, flo
     existing_aliases = taxonomy.product_aliases
     product_values = set(existing_aliases.values())
 
+    # 英文/拼音模型名通常带明显前缀和版本号，置信度较高。
     model_pattern = re.compile(
         r"\b(?:GPT|Claude|Gemini|Grok|Llama|Mistral|Qwen|ERNIE|GLM|Hunyuan|DeepSeek|Baichuan|MiniCPM|Yi|Step|Doubao|Kimi|Spark|Pangu)[-\s]?[A-Za-z0-9.]+(?:[-.][A-Za-z0-9]+)*\b"
     )
@@ -245,6 +281,7 @@ def discover_product_candidates(text: str, taxonomy) -> list[tuple[str, str, flo
         canonical = infer_product_canonical(alias, product_values)
         candidates.append((canonical, alias, 0.92, "明确模型/产品编号，自动加入产品别名"))
 
+    # 中文产品短语更容易有歧义，先给中等置信度，重复出现后才自动沉淀。
     chinese_pattern = re.compile(r"[\u4e00-\u9fffA-Za-z0-9]{2,16}(?:大模型|模型|Agent|智能体|助手)")
     for match in chinese_pattern.findall(text):
         alias = clean_candidate(match)
@@ -261,6 +298,7 @@ def discover_entity_candidates(text: str, taxonomy) -> list[tuple[str, str, floa
     candidates: list[tuple[str, str, float, str]] = []
     existing_aliases = taxonomy.entity_aliases
 
+    # 中文组织通常带“科技/智能/集团/实验室/研究院”等后缀。
     chinese_pattern = re.compile(r"[\u4e00-\u9fff]{2,12}(?:科技|智能|集团|实验室|研究院|云|公司)")
     for match in chinese_pattern.findall(text):
         alias = clean_candidate(match)
@@ -268,6 +306,7 @@ def discover_entity_candidates(text: str, taxonomy) -> list[tuple[str, str, floa
             continue
         candidates.append((alias, alias, 0.72, "中文组织后缀命中，需要重复出现后自动沉淀"))
 
+    # 英文组织通常是若干专名词 + AI/Labs/Research 等后缀。
     english_pattern = re.compile(
         r"\b(?:[A-Z][A-Za-z0-9&.-]+)(?:\s+[A-Z][A-Za-z0-9&.-]+){0,2}\s+(?:AI|Labs|Lab|Research|Cloud|Technologies|Systems)\b"
     )
@@ -312,6 +351,7 @@ def split_candidates(
     review: list[TaxonomyCandidate] = []
 
     for candidate in candidates:
+        # should_auto_accept 统一管理自动接受阈值。
         if should_auto_accept(candidate):
             candidate.status = "auto"
             auto.append(candidate)
@@ -337,6 +377,7 @@ def should_auto_accept(candidate: TaxonomyCandidate) -> bool:
 def write_generated_taxonomy(candidates: list[TaxonomyCandidate], taxonomy_dir: Path) -> list[Path]:
     """把自动候选写入 generated 词典。"""
 
+    # generated 目录专门保存自动生成内容，和人工维护的基础词典/override 分开。
     generated_dir = taxonomy_dir / "generated"
     generated_dir.mkdir(parents=True, exist_ok=True)
 
@@ -363,6 +404,7 @@ def merge_generated_aliases(
 ) -> dict[str, Any]:
     """合并实体/产品 generated 词典。"""
 
+    # 如果文件不存在或结构不对，就从空对象开始。
     values = payload.get(root_key)
     if not isinstance(values, dict):
         values = {}
@@ -371,6 +413,7 @@ def merge_generated_aliases(
         for canonical, raw_aliases in values.items()
     }
 
+    # 自动候选只追加别名，不删除已有 generated 内容。
     for candidate in candidates:
         if candidate.kind != kind:
             continue
@@ -389,6 +432,7 @@ def merge_generated_aliases(
 def merge_generated_actions(payload: dict[str, Any], candidates: list[TaxonomyCandidate]) -> dict[str, Any]:
     """合并动作 generated 词典。"""
 
+    # actions 既兼容 {"id": {"aliases": [...]}}，也兼容旧的 {"id": [...]}。
     raw_actions = payload.get("actions")
     if not isinstance(raw_actions, dict):
         raw_actions = {}
@@ -420,6 +464,7 @@ def merge_generated_actions(payload: dict[str, Any], candidates: list[TaxonomyCa
 def write_review_candidates(candidates: list[TaxonomyCandidate], taxonomy_dir: Path) -> Path:
     """保存需要人工复核的候选 JSON。"""
 
+    # review 文件给人工看；确认后可以写到 overrides。
     review_dir = taxonomy_dir / "review"
     review_dir.mkdir(parents=True, exist_ok=True)
     review_path = review_dir / "taxonomy_candidates.json"
@@ -439,6 +484,7 @@ def write_review_report(
 ) -> Path:
     """保存 Markdown 版词典更新报告。"""
 
+    # Markdown 报告更适合面试/人工阅读，JSON 更适合后续程序处理。
     review_dir = taxonomy_dir / "review"
     review_dir.mkdir(parents=True, exist_ok=True)
     report_path = review_dir / "taxonomy_report.md"
@@ -516,6 +562,7 @@ def count_candidates(candidates: list[TaxonomyCandidate], kind: str) -> int:
 def infer_product_canonical(alias: str, known_products: set[str]) -> str:
     """根据模型名前缀推断产品家族。"""
 
+    # normalize_alias 后把空格统一成连字符，便于判断 gpt-5 / gpt 这类前缀。
     lowered = normalize_alias(alias).replace(" ", "-")
     for prefix, canonical in PRODUCT_PREFIX_CANONICAL.items():
         if lowered.startswith(prefix) and canonical in known_products:
@@ -538,6 +585,7 @@ def clean_candidate(value: str) -> str:
 def is_generic_candidate(value: str) -> bool:
     """过滤明显泛化的候选词。"""
 
+    # compact 会移除空格、下划线、点和横线，让“人工 智能”和“人工智能”都能命中。
     normalized = normalize_alias(value)
     compact = re.sub(r"[\s._-]+", "", normalized)
     return compact in {normalize_alias(item).replace(" ", "") for item in GENERIC_CANDIDATES}

@@ -1,5 +1,19 @@
+"""SQLite 数据库结构查看脚本。
+
+这个脚本是一个本地调试辅助工具，用来查看 SQLite 数据库里有哪些表、
+每张表有哪些字段、建表 SQL 是什么，以及前几行样例数据。
+
+用法：
+python inspect_sqlite.py data/agent.sqlite3
+"""
+
+# sqlite3 是 Python 标准库自带的 SQLite 客户端。
 import sqlite3
+
+# sys 用来读取命令行参数。
 import sys
+
+# Path 用来处理数据库文件路径。
 from pathlib import Path
 
 
@@ -24,8 +38,12 @@ def truncate_value(value, max_len: int = 80):
 
 
 def inspect_sqlite_db(db_path: str, sample_rows: int = 5):
+    """打印 SQLite 数据库的表结构和少量样例数据。"""
+
+    # 把字符串路径转成 Path，便于检查文件是否存在。
     db_file = Path(db_path)
 
+    # 文件不存在时直接提示，不尝试创建数据库。
     if not db_file.exists():
         print(f"数据库文件不存在: {db_file}")
         return
@@ -35,7 +53,10 @@ def inspect_sqlite_db(db_path: str, sample_rows: int = 5):
     print("=" * 80)
 
     try:
+        # 连接数据库。这里只读元信息和样例数据，不修改数据库。
         conn = sqlite3.connect(str(db_file))
+
+        # row_factory 让查询结果可以用 row["字段名"] 访问。
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -106,6 +127,7 @@ def inspect_sqlite_db(db_path: str, sample_rows: int = 5):
             # 4. 统计行数
             if object_type == "table":
                 try:
+                    # 表名不能作为 SQL 参数绑定，所以使用 quote_identifier 安全引用。
                     cursor.execute(f"SELECT COUNT(*) AS cnt FROM {quote_identifier(table_name)};")
                     count = cursor.fetchone()["cnt"]
                     print(f"\n总行数: {count}")
@@ -115,6 +137,7 @@ def inspect_sqlite_db(db_path: str, sample_rows: int = 5):
             # 5. 查看前几行数据
             print(f"\n前 {sample_rows} 行数据：")
             try:
+                # LIMIT 的值可以作为参数绑定，避免拼接数字。
                 cursor.execute(
                     f"SELECT * FROM {quote_identifier(table_name)} LIMIT ?;",
                     (sample_rows,)
@@ -124,12 +147,14 @@ def inspect_sqlite_db(db_path: str, sample_rows: int = 5):
                 if not rows:
                     print("  表中暂无数据。")
                 else:
+                    # rows[0].keys() 读取字段名，作为样例表头。
                     col_names = rows[0].keys()
 
                     print(" | ".join(col_names))
                     print("-" * 100)
 
                     for row in rows:
+                        # truncate_value 避免长 Markdown / JSON 内容把终端刷屏。
                         values = [str(truncate_value(row[col])) for col in col_names]
                         print(" | ".join(values))
 
@@ -144,6 +169,7 @@ def inspect_sqlite_db(db_path: str, sample_rows: int = 5):
 
 
 if __name__ == "__main__":
+    # 直接运行脚本时，从命令行读取数据库路径。
     if len(sys.argv) < 2:
         print("用法：")
         print("python inspect_sqlite.py your_database.db")

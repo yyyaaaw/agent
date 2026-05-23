@@ -104,18 +104,33 @@ from ai_report_agent.taxonomy_builder import update_event_taxonomy_from_items
 
 
 def attach_llm_usage_metrics(span, before_usage: dict[str, int | float]) -> None:
-    """Attach LLM usage delta to a trace span."""
+    """把某个阶段新增的 LLM 用量写入当前 trace span。
 
+    调用方式通常是：
+    1. 在调用 LLM 前先 summarize_llm_usage() 得到 before_usage。
+    2. 调用 LLM。
+    3. 用这个函数计算前后差值，并写入当前 span.metrics。
+
+    这样 trace 里既能看到整次运行的 token，也能看到每个阶段各自消耗了多少。
+    """
+
+    # llm_usage_delta 会把调用前后的 token/cost 汇总做差。
     for name, value in llm_usage_delta(before_usage).items():
+        # span.metrics 最终会写入 data/traces/trace_<run_id>.json。
         span.metrics[name] = value
 
 
 def attach_run_llm_usage_metrics(trace: TraceRecorder) -> dict[str, int | float]:
-    """Attach total LLM usage to run-level trace metrics."""
+    """把整次运行的 LLM 总用量写入 run-level trace metrics。"""
 
+    # summarize_llm_usage 读取当前进程内所有 LLM 调用记录。
     usage = summarize_llm_usage()
+
+    # run-level metric 不属于某个阶段，而是整次运行的总指标。
     for name, value in usage.items():
         trace.set_metric(name, value)
+
+    # 返回 usage，方便调用方继续拼接 run_state 决策说明。
     return usage
 
 
@@ -124,8 +139,15 @@ def attach_balance_cost_metrics(
     settings: Settings,
     balance_before: dict[str, int | float | str | bool],
 ) -> dict[str, int | float | str | bool]:
-    """Attach balance-delta cost metrics to run-level trace metrics."""
+    """把 DeepSeek 余额差额成本指标写入 run-level trace metrics。
 
+    DeepSeek 的 chat completion 响应通常只给 token usage，不直接给本次扣费。
+    如果 settings.deepseek_cost_mode == "balance_delta"，这里会读取运行结束后的余额，
+    与运行前的 balance_before 相减，得到更接近真实账单的成本。
+    """
+
+    # 如果没有启用余额差额模式，就写入一组明确的不可用指标。
+    # 这样 evaluation.py 读取 trace 时不需要判断字段是否缺失。
     if settings.deepseek_cost_mode != "balance_delta":
         metrics: dict[str, int | float | str | bool] = {
             "llm_cost_mode": settings.deepseek_cost_mode,
@@ -138,13 +160,52 @@ def attach_balance_cost_metrics(
             "llm_balance_error": "balance_delta_disabled",
         }
     else:
+        # 启用余额差额模式时，在运行末尾再读一次余额。
         balance_after = fetch_deepseek_balance(settings)
+
+        # deepseek_balance_delta 会处理余额不可用、币种不一致、余额增加等异常情况。
         metrics = deepseek_balance_delta(settings, balance_before, balance_after)
 
+    # 把成本相关字段统一写入 run-level metrics。
     for name, value in metrics.items():
         trace.set_metric(name, value)
+
+    # 返回 metrics，供 agent.py 拼接最终的 LLM usage 决策文本。
     return metrics
 
+"""
+    try except 语法：
+    try: 只运行到哪里出错了 except 就捕获哪里出错的异常，并执行 except 里的代码。
+    except: 捕获所有异常，不管是什么类型的错误都会被捕获到。如果except后面没有写raise或者其他处理方式，程序会继续往下执行，不会因为异常而中断。
+"""
+"""
+        with 是 Python 的上下文管理器语法，常用来“进入一个资源使用场景，并在结束后自动清理”。
+        with 适合用在“开始使用某个资源，结束后必须收尾”的场景。
+
+        最常见例子是打开文件：
+        with open("data.txt", "r", encoding="utf-8") as file:
+            content = file.read()
+            print(content)
+
+        也就是说，with 的好处是：不管中间有没有报错，都会自动做收尾工作，比如关闭文件、关闭数据库连接、释放锁、结束 trace 记录等。
+
+        在你的项目里经常看到这种：
+        with trace.span("collect_news") as span:
+            items, errors = collect_news(...)
+            span.metrics["raw_items"] = len(items)
+        意思是：
+        进入一个名叫 "collect_news" 的 trace 阶段。
+        as span 把这个阶段对象赋值给变量 span。
+        with 里面的代码执行。
+        代码结束后，自动记录这个阶段的结束时间、耗时、状态。
+        如果里面报错，也能自动记录错误信息.
+
+        trace 严格说不是“资源”，它更像是一个运行记录器 / 监控记录本。
+        通过 with trace.span()，你可以把整个 Agent 运行过程切分成多个阶段，每个阶段的开始和结束都会被 trace 自动记录下来。
+        上面例子的意思是：
+        请 trace 帮我记录一个阶段，名字叫 collect_news。span 就是这个阶段的小记录条目。它不是文件、数据库连接那种真实资源，但它用了 with 语法，是因为它也需要“进入时记录开始时间，退出时记录结束时间”。所以它借用了 with 的上下文管理能力。
+        用 with 自动记录这个阶段的开始、结束、耗时和错误。
+ """
 
 def run_daily_report(settings: Settings) -> Path:
     """运行一次完整的 AI 热点日报 Agent，并返回最终报告路径。
@@ -165,10 +226,14 @@ def run_daily_report(settings: Settings) -> Path:
     # 清空本进程内上一轮可能遗留的 LLM usage 记录。
     reset_llm_usage()
 
+    # 运行前余额。只有 balance_delta 模式会填充它；
+    # 其他模式保持空字典，后续 attach_balance_cost_metrics 会写入不可用原因。
     balance_before: dict[str, int | float | str | bool] = {}
 
     # try 包住完整流程，这样即使中途失败，也能在 except 里保存失败 trace。
     try:
+        # 如果启用余额差额成本统计，先记录运行前余额。
+        # 这一步在数据库初始化之前执行，是为了尽量覆盖整次运行的所有 LLM 成本。
         if settings.deepseek_cost_mode == "balance_delta":
             balance_before = fetch_deepseek_balance(settings)
 
@@ -211,7 +276,10 @@ def run_daily_report(settings: Settings) -> Path:
         # 采集 RSS 新闻，并记录采集数量和失败源数量。
         with trace.span("collect_news") as span:
             # collect_news 会逐个请求 RSS 源，并返回成功解析的新闻和错误列表。
+            # source_health_path 记录每个来源上次成功 URL、失败次数等长期健康信息。
             source_health_path = settings.raw_data_dir.parent / "source_health.json"
+
+            # source_plan_path 记录来源覆盖和维护建议，例如是否要扩充中文来源。
             source_plan_path = settings.raw_data_dir.parent / "source_plan.json"
             items, errors = collect_news(
                 # 要采集的信息源列表。
@@ -229,6 +297,8 @@ def run_daily_report(settings: Settings) -> Path:
 
             # 在 trace 里记录采集失败的信息源数量。
             span.metrics["source_errors"] = len(errors)
+
+            # 把健康状态和来源规划文件路径也写入 trace，方便从一次运行反查。
             span.metrics["source_health_path"] = str(source_health_path)
             span.metrics["source_plan_path"] = str(source_plan_path)
 
@@ -272,13 +342,20 @@ def run_daily_report(settings: Settings) -> Path:
         # 高置信候选会写入 generated 词典；低置信候选会提示人工修正。
         with trace.span("update_event_taxonomy") as span:
             try:
+                # 这一步只更新本地词典文件，不调用 LLM。
                 taxonomy_result = update_event_taxonomy_from_items(items)
+
+                # 记录自动写入的实体、产品、动作别名数量。
                 span.metrics["auto_entity_aliases"] = taxonomy_result.auto_entity_aliases
                 span.metrics["auto_product_aliases"] = taxonomy_result.auto_product_aliases
                 span.metrics["auto_action_aliases"] = taxonomy_result.auto_action_aliases
+
+                # 需要人工复核的候选数量和文件路径也写入 trace。
                 span.metrics["review_candidates"] = taxonomy_result.review_candidates
                 span.metrics["taxonomy_review_path"] = taxonomy_result.review_path
                 span.metrics["taxonomy_report_path"] = taxonomy_result.report_path
+
+                # 同步写入 run_state.decisions，方便不打开 trace 也能看到词典更新结果。
                 state.decisions.append(
                     "Taxonomy auto-update: "
                     f"{taxonomy_result.auto_entity_aliases} entity aliases, "
@@ -287,10 +364,12 @@ def run_daily_report(settings: Settings) -> Path:
                     f"{taxonomy_result.review_candidates} candidates need review."
                 )
                 if taxonomy_result.review_candidates:
+                    # 有人工复核候选时，把 review 文件路径写入决策轨迹。
                     state.decisions.append(
                         f"Taxonomy manual review file: {taxonomy_result.review_path}"
                     )
             except Exception as exc:
+                # 词典自动更新是辅助能力，失败时不应该中断日报主流程。
                 span.metrics["taxonomy_update_error"] = str(exc)
                 print(f"Taxonomy auto-update skipped: {exc}")
                 state.decisions.append(f"Taxonomy auto-update skipped: {exc}")
@@ -419,6 +498,7 @@ def run_daily_report(settings: Settings) -> Path:
 
         # 用 LLM 判断哪些候选事件其实属于同一真实事件，并重新命名事件标题。
         with trace.span("refine_events_with_llm") as span:
+            # 记录调用前累计用量，后面用差值计算本 span 消耗。
             usage_before = summarize_llm_usage()
 
             # events 是最终事件列表，event_decisions 是 LLM 合并过程说明。
@@ -495,6 +575,7 @@ def run_daily_report(settings: Settings) -> Path:
 
         # 调用 DeepSeek 生成日报正文。
         with trace.span("analyze_news") as span:
+            # 记录生成日报正文前的累计 LLM 用量。
             usage_before = summarize_llm_usage()
 
             # analyze_news 会做分批分析和最终汇总。
@@ -526,6 +607,7 @@ def run_daily_report(settings: Settings) -> Path:
 
         # 调用 critic 对报告做质量检查。
         with trace.span("critique_report") as span:
+            # 记录质量自查前的累计 LLM 用量。
             usage_before = summarize_llm_usage()
 
             # critique_report 会返回 PASS/FAIL 和修改建议。
@@ -548,6 +630,7 @@ def run_daily_report(settings: Settings) -> Path:
 
             # 调用 DeepSeek 根据 critic 意见修订报告。
             with trace.span("revise_report") as span:
+                # 记录修订前的累计 LLM 用量。
                 usage_before = summarize_llm_usage()
 
                 # 保留修订前的完整报告。LLM 修订有概率返回半截内容，
@@ -560,18 +643,24 @@ def run_daily_report(settings: Settings) -> Path:
 
                 # 在 trace 中记录修订后文本长度。
                 span.metrics["revised_markdown_chars"] = len(revised_markdown)
+
+                # revision_plan_valid 表示模型生成的“修订计划”是否有可执行区块。
                 span.metrics["revision_plan_valid"] = revision_result.plan_valid
                 span.metrics["revision_plan_reason"] = revision_result.plan_reason
+
+                # 记录真正被修订和被本地校验拒绝的区块数量。
                 span.metrics["revised_section_count"] = len(revision_result.revised_sections)
                 span.metrics["rejected_section_count"] = len(revision_result.rejected_sections)
                 attach_llm_usage_metrics(span, usage_before)
 
                 if revision_result.revised_sections:
+                    # 记录哪些区块被模型成功更新。
                     state.decisions.append(
                         "Revision sections updated: "
                         f"{', '.join(revision_result.revised_sections)}"
                     )
                 if revision_result.rejected_sections:
+                    # 记录哪些区块的修订被本地完整性校验拒绝。
                     state.decisions.append(
                         "Revision sections rejected: "
                         f"{'; '.join(revision_result.rejected_sections)}"
@@ -587,13 +676,17 @@ def run_daily_report(settings: Settings) -> Path:
                 else:
                     revision_ok = False
                     revision_reason = revision_result.plan_reason
+
+                # revision_accepted 是最终是否采用修订版报告。
                 span.metrics["revision_accepted"] = revision_ok
                 span.metrics["revision_validation_reason"] = revision_reason
 
                 if revision_ok:
+                    # 只有通过完整性校验时，才用修订版覆盖原报告。
                     markdown = revised_markdown
                     state.decisions.append(f"Revision accepted: {revision_reason}")
                 else:
+                    # 修订失败时保留原报告，避免短输出或坏结构破坏最终结果。
                     markdown = original_markdown
                     state.decisions.append(
                         "Revision rejected and original report kept: "
@@ -639,16 +732,22 @@ def run_daily_report(settings: Settings) -> Path:
         llm_usage = attach_run_llm_usage_metrics(trace)
         cost_metrics = attach_balance_cost_metrics(trace, settings, balance_before)
         if llm_usage["llm_call_count"]:
+            # 如果余额差额可用，优先展示更接近账单的实际成本。
             if cost_metrics.get("llm_actual_cost_available"):
                 cost_text = (
                     f"actual cost {cost_metrics['llm_actual_cost_currency']} "
                     f"{float(cost_metrics['llm_actual_cost']):.6f}"
                 )
             else:
+                # 否则展示按 token 单价估算的成本；默认单价为 0 时这里会显示 0。
                 cost_text = f"estimated cost ${llm_usage['llm_estimated_cost_usd']:.6f}"
+
+                # 如果余额差额不可用，把原因也写进决策轨迹。
                 balance_error = str(cost_metrics.get("llm_balance_error", "") or "")
                 if balance_error:
                     cost_text = f"{cost_text}; balance delta unavailable: {balance_error}"
+
+            # 写入 run_state，方便用户不打开 trace 也能看到本次 LLM 调用规模。
             state.decisions.append(
                 "LLM usage: "
                 f"{llm_usage['llm_call_count']} calls, "
