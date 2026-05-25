@@ -34,7 +34,6 @@
 - 报告 critic 质量自查与自动修订闸门。
 - JSON trace、run state、SQLite 记录和离线评估报告。
 - MCP server，允许外部 MCP 客户端调用 Agent 能力。
-- Agent v16 Skill Registry，把日报生成、离线评估、记忆检索、来源治理、反馈学习和 MCP 控制面注册成可发现、可规划的技能。
 
 ## Documentation
 
@@ -48,8 +47,6 @@
 
 ```text
 sources.json / profile.json / feedback.json
-        ↓
-skill registry / MCP tools / CLI commands
         ↓
 collect_news
         ↓
@@ -83,33 +80,25 @@ python -m pip install -r requirements.txt
 生成一次日报：
 
 ```powershell
-python catch_ai.py --run-once
+C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --run-once
 ```
 
 评估最近运行：
 
 ```powershell
-python catch_ai.py --eval --eval-limit 5
+C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --eval --eval-limit 5
 ```
 
 运行固定回归评估：
 
 ```powershell
-python catch_ai.py --eval-regression
+C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --eval-regression
 ```
 
 启动 MCP server：
 
 ```powershell
-python catch_ai.py --mcp
-```
-
-查看 Agent v16 skills：
-
-```powershell
-python catch_ai.py --list-skills
-python catch_ai.py --skill daily_report
-python catch_ai.py --recommend-skills "最近日报质量怎么样"
+C:\Users\18352\Desktop\agent\.venv\Scripts\python.exe catch_ai.py --mcp
 ```
 
 ## Inputs And Outputs
@@ -131,7 +120,6 @@ python catch_ai.py --recommend-skills "最近日报质量怎么样"
 - `evals/`：固定回归评估样例。
 - `data/agent.sqlite3`：本地长期运行数据库。
 - `data/source_health.json`：资讯源可用性记录。
-- Skill catalog：内置在 `ai_report_agent/skills.py`，用于 CLI 和 MCP 的能力发现与计划生成。
 
 ## Evaluation Metrics
 
@@ -161,7 +149,6 @@ python catch_ai.py --recommend-skills "最近日报质量怎么样"
 ```text
 agent/
   ai_report_agent/          # 当前最新版 Agent 代码
-    skills.py               # Agent v16 Skill Registry
   archive/versions/         # 历史版本快照
   docs/                     # 工程文档
   evals/                    # 固定回归评估样例
@@ -182,7 +169,7 @@ agent/
 archive/versions/version01
 archive/versions/version02
 ...
-archive/versions/version15
+archive/versions/version13
 ```
 
 根目录代表当前可运行版本；历史目录用于回看每次能力迭代和设计取舍。

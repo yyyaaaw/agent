@@ -12,28 +12,6 @@
 | `python catch_ai.py --eval --eval-limit 5` | 评估最近 N 次运行 | `data/eval/eval_report_*.md` 和 `.json` |
 | `python catch_ai.py --eval-regression` | 运行固定回归评估样例 | `data/eval/regression_report_*.md` 和 `.json` |
 | `python catch_ai.py --mcp` | 启动 MCP server | stdio MCP tools |
-| `python catch_ai.py --list-skills` | 列出 Agent v16 skills | 终端文本 |
-| `python catch_ai.py --recommend-skills "目标"` | 根据目标推荐 skill | 终端文本 |
-| `python catch_ai.py --skill daily_report` | 查看某个 skill 的 dry-run 计划 | 终端文本，不执行工具 |
-| `python catch_ai.py --skill run_evaluation --execute-skill` | 执行支持 CLI 映射的 skill | 复用原有命令产物 |
-
-## MCP 工具
-
-MCP server 会暴露核心 Agent 能力和 Agent v16 skill 能力。
-
-| 工具 | 作用 | 副作用 |
-| --- | --- | --- |
-| `list_agent_skills` | 列出内置 skill catalog | 无 |
-| `get_agent_skill` | 获取某个 skill 的完整定义 | 无 |
-| `plan_agent_skill` | 生成某个 skill 的 dry-run 或执行计划 | 无 |
-| `recommend_agent_skills` | 根据目标描述推荐 skill | 无 |
-| `get_source_health` | 读取 RSS 来源健康状态 | 无 |
-| `get_source_plan` | 读取来源覆盖规划建议 | 无 |
-| `generate_daily_report` | 运行完整日报流程 | 会访问网络、调用 LLM、写本地文件和 SQLite |
-| `evaluate_recent_runs` | 生成离线评估报告 | 写入 `data/eval/` |
-| `list_recent_runs` / `get_run_details` / `get_run_trace` | 查询运行记录和 trace | 无 |
-| `get_latest_report` / `list_recent_events` / `search_events` | 查询报告和历史事件 | 无 |
-| `submit_event_feedback` | 保存事件反馈并更新偏好规则 | 写入 SQLite 和 `feedback.json` |
 
 ## 配置输入
 

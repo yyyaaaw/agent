@@ -7,5 +7,4 @@ __init__.py 的作用：
 这个文件目前只放说明，不写业务逻辑。
 真正的功能在 agent.py、config.py、sources.py、database.py、embeddings.py、feedback.py 等模块中。
 Version 8 增加了 LLM 事件整合，用于把候选新闻簇合并成更准确的事件。
-Version 16 增加了 Skill Registry，用于描述、推荐和规划 Agent 能力入口。
 """

@@ -21,9 +21,6 @@
 
 - 启动 MCP Server：
   python catch_ai.py --mcp
-
-- 查看 Agent v16 skills：
-  python catch_ai.py --list-skills
 """
 
 from __future__ import annotations
@@ -51,15 +48,6 @@ from ai_report_agent.regression_eval import run_regression_evaluation
 
 # run_daily 提供常驻定时调度能力。
 from ai_report_agent.scheduler import run_daily
-
-# skills 模块提供 Agent v16 的技能注册、推荐和计划说明。
-from ai_report_agent.skills import (
-    build_skill_plan,
-    format_skill_catalog,
-    format_skill_plan,
-    list_skills,
-    recommend_skills,
-)
 
 
 def parse_args() -> argparse.Namespace:
@@ -124,75 +112,8 @@ def parse_args() -> argparse.Namespace:
         help="Start a stdio MCP server exposing the agent as tools.",
     )
 
-    # Agent v16 skill catalog：只读展示，不会加载 .env，也不会调用模型。
-    parser.add_argument(
-        "--list-skills",
-        action="store_true",
-        help="List built-in Agent v16 skills.",
-    )
-
-    # 根据用户目标推荐 skill。使用确定性关键词匹配，不调用 LLM。
-    parser.add_argument(
-        "--recommend-skills",
-        metavar="QUERY",
-        help="Recommend Agent v16 skills for a short goal description.",
-    )
-
-    # 展示某个 skill 的执行计划；默认 dry-run，不真正执行。
-    parser.add_argument(
-        "--skill",
-        metavar="NAME",
-        help="Show a dry-run plan for a named Agent v16 skill.",
-    )
-
-    # 给 skill plan 添加用户目标描述。
-    parser.add_argument(
-        "--skill-objective",
-        default="",
-        help="Optional objective text used when planning a skill.",
-    )
-
-    # 只有显式开启时才执行 skill，避免误触发完整日报或写文件操作。
-    parser.add_argument(
-        "--execute-skill",
-        action="store_true",
-        help="Execute a supported skill instead of only printing its plan.",
-    )
-
     # 统一返回解析结果，main() 再根据优先级执行。
     return parser.parse_args()
-
-
-def execute_skill(skill_name: str, args: argparse.Namespace) -> None:
-    """执行少量明确映射到现有 CLI 能力的 skill。
-
-    大多数 skill 当前用于能力发现和规划；真正执行时仍复用已有稳定入口，
-    避免为 skill 层重复实现一套业务流程。
-    """
-
-    normalized_skill_name = skill_name.strip().lower()
-    executable_skills = {"daily_report", "run_evaluation", "feedback_learning"}
-    if normalized_skill_name not in executable_skills:
-        raise RuntimeError(
-            f"Skill '{normalized_skill_name}' 当前只支持规划，不支持 CLI 直接执行。"
-        )
-
-    # 执行类 skill 需要项目配置；这里才加载 .env 和本地路径。
-    settings = load_settings()
-
-    if normalized_skill_name == "daily_report":
-        report_path = run_daily_report(settings)
-        print(f"Daily report generated: {report_path}")
-        return
-
-    if normalized_skill_name == "run_evaluation":
-        eval_path = run_evaluation(settings, limit=args.eval_limit)
-        print(f"Evaluation report generated: {eval_path}")
-        return
-
-    if normalized_skill_name == "feedback_learning":
-        run_feedback_session(settings.database_path, settings.feedback_path)
-        return
 
 
 def main() -> None:
@@ -201,42 +122,10 @@ def main() -> None:
     # 先解析用户输入的命令行参数。
     args = parse_args()
 
-    # skill catalog 是只读元数据，可以在不读取 .env 的情况下直接返回。
-    if args.list_skills:
-        print(format_skill_catalog(list_skills()))
-        return
-
-    # skill 推荐同样是确定性本地逻辑，不调用 LLM。
-    if args.recommend_skills:
-        recommendations = recommend_skills(args.recommend_skills)
-        if not recommendations:
-            print("No matching skills found.")
-            return
-        for item in recommendations:
-            print(
-                f"{item['name']} | {item['title']} | "
-                f"score={item['score']} | side_effect={item['side_effect']}"
-            )
-        return
-
-    # 默认只打印 dry-run 计划；只有 --execute-skill 才会真正运行。
-    if args.skill and not args.execute_skill:
-        plan = build_skill_plan(
-            args.skill,
-            objective=args.skill_objective,
-            dry_run=True,
-        )
-        print(format_skill_plan(plan))
-        return
-
     # MCP 模式最特殊：它需要保持标准输入输出给 MCP 协议使用，
     # 因此优先处理，并且不额外加载日报运行流程。
     if args.mcp:
         run_mcp_server()
-        return
-
-    if args.skill and args.execute_skill:
-        execute_skill(args.skill, args)
         return
 
     # 其他模式都需要项目配置，例如数据库路径、报告目录、API 配置等。

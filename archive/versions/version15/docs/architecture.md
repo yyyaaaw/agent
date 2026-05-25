@@ -8,9 +8,6 @@
 配置加载
   .env / sources.json / profile.json / feedback.json
         ↓
-Skill / CLI / MCP 能力入口
-  skills.py -> catch_ai.py / mcp_server.py
-        ↓
 资讯采集
   load_sources -> collect_news -> source_health.json
         ↓
@@ -61,7 +58,6 @@ LLM 事件整合
 | `observability.py` | span trace、阶段耗时和 run-level metrics。 |
 | `evaluation.py` | 离线评估最近运行，输出 Markdown 和 JSON 报告。 |
 | `mcp_server.py` | 把核心能力暴露为 MCP tools。 |
-| `skills.py` | Agent v16 Skill Registry，描述技能、风险、工具链和 dry-run 计划。 |
 
 ## 数据存储
 
@@ -75,4 +71,3 @@ LLM 事件整合
 - 采用标准库 HTTP 和 XML 解析，减少基础链路依赖。
 - 把 prompt 保存到 `data/debug/`，方便定位模型输入问题。
 - 把 critic 和 evaluation 拆开：critic 评单次报告，evaluation 看多次运行趋势。
-- 把 Skill 层放在现有 pipeline 之上：它负责能力发现和规划，不重写稳定的日报主流程。

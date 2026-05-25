@@ -1,7 +1,7 @@
 """本地 MCP Client 调试脚本。
 
-这个脚本会启动当前项目的 MCP Server，然后调用一个只读工具
-`list_agent_skills` 验证 MCP 通信是否正常。
+这个脚本会启动当前项目的 MCP Server，然后调用一个低成本工具
+`evaluate_recent_runs` 验证 MCP 通信是否正常。
 
 注意：
 - 它不会直接调用 DeepSeek。
@@ -29,7 +29,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 async def main() -> None:
-    """启动本地 MCP Server，并调用 list_agent_skills 做连通性测试。"""
+    """启动本地 MCP Server，并调用 evaluate_recent_runs 做连通性测试。"""
 
     # 这里模拟一个 MCP 客户端，启动当前项目的 MCP Server。
     params = StdioServerParameters(
@@ -54,13 +54,13 @@ async def main() -> None:
             for tool in tools.tools:
                 print("-", tool.name)
 
-            # 3. 调用一个只读工具，不会调用 DeepSeek，也不会写入 eval 报告。
+            # 3. 调用一个低成本工具，不会调用 DeepSeek
             result = await session.call_tool(
-                "list_agent_skills",
-                {},
+                "evaluate_recent_runs",
+                {"limit": 3},
             )
 
-            print("\n调用 list_agent_skills 的结果：")
+            print("\n调用 evaluate_recent_runs 的结果：")
             print(result.content[0].text)
 
 

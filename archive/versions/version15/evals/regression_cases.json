@@ -1,0 +1,327 @@
+{
+  "version": 1,
+  "description": "Deterministic regression cases for core agent behavior. These cases do not call network or LLM APIs.",
+  "cases": [
+    {
+      "id": "dedup_removes_tracking_url_duplicate",
+      "type": "deduplication",
+      "description": "Same article URL with tracking parameters should be treated as a duplicate.",
+      "items": [
+        {
+          "id": "agent_workflow_original",
+          "source": "Example AI",
+          "category": "应用与产品",
+          "title": "AI agent workflow launches for enterprise support",
+          "link": "https://example.com/posts/agent-workflow?utm_source=rss&ref=feed",
+          "published": "2026-05-16",
+          "summary": "A new product workflow helps enterprise teams automate support triage."
+        },
+        {
+          "id": "agent_workflow_duplicate",
+          "source": "Example Mirror",
+          "category": "应用与产品",
+          "title": "AI agent workflow launches for enterprise support",
+          "link": "https://example.com/posts/agent-workflow",
+          "published": "2026-05-16",
+          "summary": "Mirror copy of the same product launch."
+        },
+        {
+          "id": "creative_assistant_feature",
+          "source": "Example Product",
+          "category": "应用与产品",
+          "title": "Creative assistant adds video editing feature",
+          "link": "https://example.com/posts/creative-assistant-video",
+          "published": "2026-05-16",
+          "summary": "A creative AI assistant adds a concrete video editing feature."
+        }
+      ],
+      "expect": {
+        "unique_count": 2,
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": "scorer_prioritizes_application_news",
+      "type": "scoring_order",
+      "description": "Application and workflow news should rank above pure research content.",
+      "profile": {
+        "interests": ["agent", "workflow", "enterprise", "creative"],
+        "avoid": ["paper", "benchmark", "algorithm"],
+        "preferred_categories": ["应用与产品", "企业应用"],
+        "report_style": "Practical and application-focused.",
+        "top_questions": ["Can users apply this now?"]
+      },
+      "items": [
+        {
+          "id": "app_agent_tool",
+          "source": "Example Product",
+          "category": "应用与产品",
+          "title": "New AI agent tool automates enterprise support workflows",
+          "link": "https://example.com/app-agent-tool",
+          "published": "2026-05-16",
+          "summary": "The product launch adds an agent workflow for enterprise support teams."
+        },
+        {
+          "id": "research_paper",
+          "source": "Example Research",
+          "category": "研究论文",
+          "title": "Research paper improves transformer benchmark",
+          "link": "https://example.com/research-paper",
+          "published": "2026-05-16",
+          "summary": "A paper focuses on algorithm details and benchmark results."
+        },
+        {
+          "id": "creative_feature",
+          "source": "Example App",
+          "category": "应用与产品",
+          "title": "Creative assistant adds a new editing feature",
+          "link": "https://example.com/creative-feature",
+          "published": "2026-05-16",
+          "summary": "A creative AI assistant adds a concrete feature for creators."
+        }
+      ],
+      "expect": {
+        "top_id": "app_agent_tool",
+        "above_ids": ["research_paper"]
+      }
+    },
+    {
+      "id": "scorer_uses_source_metadata_for_domestic_coverage",
+      "type": "scoring_order",
+      "description": "Domestic Chinese general-news AI application items should get a metadata boost over generic low-priority research notes.",
+      "profile": {
+        "interests": ["agent", "workflow", "enterprise", "工具"],
+        "avoid": ["paper", "benchmark", "algorithm"],
+        "preferred_categories": ["应用与产品", "企业应用", "产品与研究"],
+        "report_style": "Practical and application-focused.",
+        "top_questions": ["Can users apply this now?"]
+      },
+      "items": [
+        {
+          "id": "domestic_agent_tool",
+          "source": "机器之心",
+          "category": "应用与产品",
+          "title": "国产 AI agent 工作流工具发布，面向企业客服自动化",
+          "link": "https://example.cn/domestic-agent-tool",
+          "published": "2026-05-16",
+          "summary": "这是一款面向企业客服和办公流程的 AI 工具，强调可落地应用。",
+          "region": "china",
+          "language": "zh",
+          "source_type": "general_news",
+          "priority": 5,
+          "tags": ["国内", "产品", "企业", "工具"]
+        },
+        {
+          "id": "global_research_note",
+          "source": "Arxiv CS AI",
+          "category": "研究论文",
+          "title": "Research paper improves transformer benchmark",
+          "link": "https://example.com/research-paper",
+          "published": "2026-05-16",
+          "summary": "A paper focuses on algorithm details and benchmark results.",
+          "region": "global",
+          "language": "en",
+          "source_type": "research",
+          "priority": 1,
+          "tags": ["paper", "research"]
+        }
+      ],
+      "expect": {
+        "top_id": "domestic_agent_tool",
+        "above_ids": ["global_research_note"]
+      }
+    },
+    {
+      "id": "event_taxonomy_merges_domestic_launch_aliases",
+      "type": "event_taxonomy_pair",
+      "description": "Chinese launch aliases such as 发布 and 上线 should normalize to the same action and merge the same Qwen event.",
+      "items": [
+        {
+          "id": "qwen_official",
+          "text": "阿里云发布 Qwen3 通义千问新模型，面向企业客户开放 API。",
+          "embedding": [1.0, 0.0, 0.0]
+        },
+        {
+          "id": "qwen_media",
+          "text": "通义千问 Qwen3 正式上线，阿里称模型推理能力升级。",
+          "embedding": [0.98, 0.08, 0.0]
+        },
+        {
+          "id": "ernie_upgrade",
+          "text": "百度文心 ERNIE 4.5 完成升级，新增企业智能体工具。",
+          "embedding": [0.0, 1.0, 0.0]
+        }
+      ],
+      "pairs": [
+        {
+          "left": "qwen_official",
+          "right": "qwen_media"
+        },
+        {
+          "left": "qwen_official",
+          "right": "ernie_upgrade"
+        }
+      ],
+      "expect": {
+        "items": {
+          "qwen_official": {
+            "entities": ["Alibaba"],
+            "products": ["Qwen"],
+            "actions": ["launch"]
+          },
+          "qwen_media": {
+            "entities": ["Alibaba"],
+            "products": ["Qwen"],
+            "actions": ["launch"]
+          },
+          "ernie_upgrade": {
+            "entities": ["Baidu"],
+            "products": ["ERNIE"],
+            "actions": ["upgrade"]
+          }
+        },
+        "pairs": {
+          "qwen_official|qwen_media": true,
+          "qwen_official|ernie_upgrade": false
+        }
+      }
+    },
+    {
+      "id": "event_taxonomy_handles_similar_action_words",
+      "type": "event_taxonomy_pair",
+      "description": "Similar actions with different wording, such as 合作 and 集成, should merge when entity and product evidence match.",
+      "items": [
+        {
+          "id": "minimax_partner",
+          "text": "腾讯与 MiniMax 达成合作，Hailuo AI 能力将进入企业微信场景。",
+          "embedding": [1.0, 0.0, 0.0]
+        },
+        {
+          "id": "minimax_integration",
+          "text": "企业微信集成 MiniMax Hailuo AI 能力，面向客服和办公工作流开放。",
+          "embedding": [0.96, 0.1, 0.0]
+        }
+      ],
+      "pairs": [
+        {
+          "left": "minimax_partner",
+          "right": "minimax_integration"
+        }
+      ],
+      "expect": {
+        "items": {
+          "minimax_partner": {
+            "entities": ["Tencent", "MiniMax"],
+            "products": ["Hailuo AI"],
+            "actions": ["partnership"]
+          },
+          "minimax_integration": {
+            "entities": ["MiniMax"],
+            "products": ["Hailuo AI"],
+            "actions": ["integration"]
+          }
+        },
+        "pairs": {
+          "minimax_partner|minimax_integration": true
+        }
+      }
+    },
+    {
+      "id": "taxonomy_builder_generates_safe_aliases_and_review_hints",
+      "type": "taxonomy_builder",
+      "description": "Taxonomy builder should auto-generate high-confidence product/action aliases and keep ambiguous action terms for manual review.",
+      "items": [
+        {
+          "id": "qwen4_gray_release",
+          "source": "机器之心",
+          "category": "产品与模型",
+          "title": "阿里云灰度开放 Qwen4 模型，通义千问家族面向开发者测试",
+          "link": "https://example.cn/qwen4",
+          "published": "2026-05-21",
+          "summary": "Qwen4 暂未全量发布，但已经开放体验。"
+        },
+        {
+          "id": "hailyou_layout",
+          "source": "36氪",
+          "category": "应用与产品",
+          "title": "腾讯布局 Hailuo AI 企业工作流场景",
+          "link": "https://example.cn/hailuo-layout",
+          "published": "2026-05-21",
+          "summary": "报道提到 Hailuo AI 将进入更多办公场景，但布局一词需要人工确认具体动作。"
+        }
+      ],
+      "expect": {
+        "min_auto_product_aliases": 1,
+        "min_auto_action_aliases": 1,
+        "generated_products": {
+          "qwen4": {
+            "canonical": "Qwen",
+            "alias": "Qwen4"
+          }
+        },
+        "generated_actions": {
+          "gray_release": {
+            "action": "launch",
+            "alias": "灰度开放"
+          }
+        },
+        "review_aliases": ["布局"]
+      }
+    },
+    {
+      "id": "critic_flags_missing_report_metadata",
+      "type": "local_critic",
+      "description": "A report without standard date metadata should trigger local critic issues.",
+      "today": "2026-05-16",
+      "report": "## 今日摘要\n这是一份缺少标准一级标题和生成时间的日报。\n\n## 参考来源\n- https://example.com/news\n",
+      "expect": {
+        "min_issue_count": 2
+      }
+    },
+    {
+      "id": "revision_gate_rejects_short_reply",
+      "type": "revision_validation",
+      "description": "A short conversational LLM reply must not overwrite a complete report.",
+      "original_report": {
+        "header": "# AI Hotspots Daily - 2026-05-16\n\nGenerated at: 2026-05-16 09:00:00\n\n",
+        "repeat_section": "## 今日摘要\n- This is a complete report section with sources, context, and practical application notes.\n\n## 参考来源\n- https://example.com/source\n\n",
+        "repeat_count": 12
+      },
+      "revised_report": "收到，我会根据这些意见重新整理一份更完整的日报。",
+      "expect": {
+        "accepted": false
+      }
+    },
+    {
+      "id": "section_revision_rejects_full_report_output",
+      "type": "section_revision_validation",
+      "description": "A section-level revision must reject a model response that tries to output a whole report.",
+      "section_title": "今日摘要",
+      "original_section": "## 今日摘要\n\n- OpenAI 发布新的企业功能，来源显示其面向客服和办公工作流。\n- 国内模型厂商上线新工具，强调企业落地。\n",
+      "revised_section": "# AI 热点日报 - 2026-05-16\n\n## 今日摘要\n\n这是一整篇报告，不是单个区块。\n",
+      "expect": {
+        "accepted": false
+      }
+    },
+    {
+      "id": "revision_plan_parses_target_sections",
+      "type": "revision_plan",
+      "description": "Structured revision plans should only accept existing report sections.",
+      "report": "# AI 热点日报 - 2026-05-16\n\n生成时间：2026-05-16 09:00:00\n\n## 今日摘要\n\n原摘要。\n\n## 风险与监管\n\n原风险。\n\n## 参考来源\n\n- https://example.com/source\n\n## 采集状态\n\n采集失败：\n- 无\n",
+      "plan_response": "{\"global_instructions\":[\"删除无来源判断\"],\"sections\":[{\"section_title\":\"今日摘要\",\"instructions\":[\"补充应用影响\"]},{\"section_title\":\"不存在区块\",\"instructions\":[\"这条应被忽略\"]}]}",
+      "expect": {
+        "plan_valid": true,
+        "section_titles": ["今日摘要"]
+      }
+    },
+    {
+      "id": "should_revise_detects_fail_conclusion",
+      "type": "should_revise",
+      "description": "Explicit FAIL critic conclusion should trigger revision.",
+      "critique": "结论：FAIL\n主要问题：存在无来源支撑的事实。\n修改建议：删除或补充来源。",
+      "expect": {
+        "should_revise": true
+      }
+    }
+  ]
+}

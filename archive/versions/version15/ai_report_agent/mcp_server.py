@@ -36,7 +36,7 @@ from ai_report_agent.config import Settings, load_settings
 from ai_report_agent.database import connect, initialize_database
 
 # run_evaluation 用于生成离线评测报告。
-from ai_report_agent.evaluation import read_source_health_summary, run_evaluation
+from ai_report_agent.evaluation import run_evaluation
 
 # load_feedback / save_feedback 用于读取和保存 feedback.json。
 from ai_report_agent.feedback import load_feedback, save_feedback
@@ -46,16 +46,6 @@ from ai_report_agent.feedback_loop import (
     build_feedback_rules_from_history,
     merge_feedback_rules,
     save_event_feedback,
-)
-
-# skills 模块提供 Agent v16 的技能注册和规划能力。
-from ai_report_agent.skills import (
-    build_skill_plan,
-    get_skill,
-    list_skills_payload,
-    plan_to_dict,
-    recommend_skills,
-    skill_to_dict,
 )
 
 
@@ -111,49 +101,6 @@ def create_mcp_app(settings: Settings) -> Any:
     mcp = FastMCP("ai-report-agent")
 
     @mcp.tool()
-    def list_agent_skills() -> JsonDict:
-        """列出 Agent v16 内置 skills。"""
-
-        return {
-            "skills": list_skills_payload(),
-        }
-
-    @mcp.tool()
-    def get_agent_skill(skill_name: str) -> JsonDict:
-        """读取某个 Agent skill 的完整定义。"""
-
-        return {
-            "skill": skill_to_dict(get_skill(skill_name)),
-        }
-
-    @mcp.tool()
-    def plan_agent_skill(
-        skill_name: str,
-        objective: str = "",
-        dry_run: bool = True,
-    ) -> JsonDict:
-        """为某个 Agent skill 生成可解释执行计划。"""
-
-        return {
-            "plan": plan_to_dict(
-                build_skill_plan(
-                    skill_name,
-                    objective=objective,
-                    dry_run=dry_run,
-                )
-            )
-        }
-
-    @mcp.tool()
-    def recommend_agent_skills(query: str, limit: int = 3) -> JsonDict:
-        """根据目标描述推荐 Agent skills。"""
-
-        return {
-            "query": query,
-            "skills": recommend_skills(query, limit=limit),
-        }
-
-    @mcp.tool()
     def generate_daily_report() -> JsonDict:
         """运行完整 AI 热点日报 Agent，并返回报告路径。"""
 
@@ -177,46 +124,6 @@ def create_mcp_app(settings: Settings) -> Any:
         return {
             "eval_report_path": str(report_path),
             "markdown": report_path.read_text(encoding="utf-8"),
-        }
-
-    @mcp.tool()
-    def get_source_health() -> JsonDict:
-        """读取 RSS 来源健康状态。"""
-
-        source_health_path = settings.raw_data_dir.parent / "source_health.json"
-        summary = read_source_health_summary(source_health_path)
-
-        if source_health_path.exists():
-            payload = json.loads(source_health_path.read_text(encoding="utf-8"))
-            sources = [
-                value
-                for value in payload.values()
-                if isinstance(value, dict)
-            ]
-        else:
-            sources = []
-
-        return {
-            "source_health_path": str(source_health_path),
-            "summary": asdict(summary),
-            "sources": sources,
-        }
-
-    @mcp.tool()
-    def get_source_plan() -> JsonDict:
-        """读取最近一次来源覆盖规划建议。"""
-
-        source_plan_path = settings.raw_data_dir.parent / "source_plan.json"
-        if not source_plan_path.exists():
-            return {
-                "source_plan_path": str(source_plan_path),
-                "plan": None,
-                "message": "还没有 source_plan.json，请先运行一次日报采集流程。",
-            }
-
-        return {
-            "source_plan_path": str(source_plan_path),
-            "plan": json.loads(source_plan_path.read_text(encoding="utf-8")),
         }
 
     @mcp.tool()
