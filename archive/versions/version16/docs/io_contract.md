@@ -6,8 +6,8 @@
 
 | 命令 | 作用 | 主要输出 |
 | --- | --- | --- |
-| `python catch_ai.py --run-once` | 立即生成一次日报，若启用邮件则发送到邮箱 | `reports/*.md`、`data/runs/*.json`、`data/traces/*.json`、SQLite、邮件 |
-| `python catch_ai.py --schedule 09:00` | 按指定时间每日运行，若启用邮件则发送到邮箱 | 同 `--run-once` |
+| `python catch_ai.py --run-once` | 立即生成一次日报 | `reports/*.md`、`data/runs/*.json`、`data/traces/*.json`、SQLite |
+| `python catch_ai.py --schedule 09:00` | 按指定时间每日运行 | 同 `--run-once` |
 | `python catch_ai.py --feedback` | 对最近事件做反馈 | 更新 `feedback.json` 和 SQLite feedback 表 |
 | `python catch_ai.py --eval --eval-limit 5` | 评估最近 N 次运行 | `data/eval/eval_report_*.md` 和 `.json` |
 | `python catch_ai.py --eval-regression` | 运行固定回归评估样例 | `data/eval/regression_report_*.md` 和 `.json` |
@@ -58,17 +58,6 @@ MCP server 会暴露核心 Agent 能力和 Agent v16 skill 能力。
 | `DEEPSEEK_COST_CURRENCY` | `CNY` | 余额差额使用的币种。 |
 | `DEEPSEEK_INPUT_PRICE_PER_1M_TOKENS` | `0` | 输入 token 单价，仅作为余额差额不可用时的估算兜底。 |
 | `DEEPSEEK_OUTPUT_PRICE_PER_1M_TOKENS` | `0` | 输出 token 单价，仅作为余额差额不可用时的估算兜底。 |
-| `EMAIL_ENABLED` | `true` / `false` | 是否在日报生成后发送邮件，默认关闭。 |
-| `EMAIL_SMTP_HOST` | `smtp.example.com` | SMTP 服务器地址。 |
-| `EMAIL_SMTP_PORT` | `587` | SMTP 服务器端口。 |
-| `EMAIL_SMTP_USERNAME` | `your_email@example.com` | SMTP 登录用户名，通常是发件邮箱。 |
-| `EMAIL_SMTP_PASSWORD` | `授权码或密码` | SMTP 登录密码或邮箱授权码。 |
-| `EMAIL_FROM` | `your_email@example.com` | 发件邮箱。 |
-| `EMAIL_TO` | `receiver@example.com` | 收件邮箱，多个收件人可用英文逗号或分号分隔。 |
-| `EMAIL_USE_TLS` | `true` | 是否使用 STARTTLS。 |
-| `EMAIL_USE_SSL` | `false` | 是否直接使用 SMTP SSL。 |
-| `EMAIL_SUBJECT_PREFIX` | `AI 热点日报` | 邮件标题前缀。 |
-| `EMAIL_TIMEOUT` | `120` | SMTP 连接超时时间，单位秒。 |
 
 ### `sources.json`
 
@@ -105,8 +94,6 @@ MCP server 会暴露核心 Agent 能力和 Agent v16 skill 能力。
 
 最终日报。包含日报正文、参考来源和采集状态。
 文件名格式为 `ai_hotspots_YYYY-MM-DD_<run_id>.md`，避免一天内多次运行互相覆盖。
-
-启用邮件发送后，日报会同时作为邮件正文和 Markdown 附件发送到 `EMAIL_TO`。
 
 ### `data/raw/*.json`
 

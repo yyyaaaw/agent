@@ -2,9 +2,6 @@
 
 ## Current
 
-- Archived the pre-email root implementation to `archive/versions/version16`.
-- Added SMTP email delivery for generated daily reports, controlled by `.env` email settings.
-- Wired one-off and scheduled CLI report generation to send email after a successful report when enabled.
 - Archived the pre-skill root implementation to `archive/versions/version15`.
 - Added Agent v16 Skill Registry with built-in skills for daily reports, evaluation, memory search, source diagnosis, feedback learning, and MCP control.
 - Added CLI commands for listing, recommending, planning, and optionally executing supported skills.

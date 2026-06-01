@@ -130,39 +130,6 @@ class Settings:
     # 是否保存发送给 DeepSeek 的 prompt，方便调试。
     save_debug_prompts: bool
 
-    # 是否启用日报邮件发送。默认关闭，避免没有配置 SMTP 时误触发外部网络。
-    email_enabled: bool
-
-    # SMTP 服务器地址，例如 smtp.qq.com、smtp.gmail.com。
-    email_smtp_host: str
-
-    # SMTP 服务器端口，TLS 常用 587，SSL 常用 465。
-    email_smtp_port: int
-
-    # SMTP 登录用户名，通常是发件邮箱。
-    email_smtp_username: str
-
-    # SMTP 登录密码或邮箱授权码。
-    email_smtp_password: str
-
-    # 发件人邮箱。
-    email_from: str
-
-    # 收件人邮箱列表，支持用英文逗号或分号分隔。
-    email_to: tuple[str, ...]
-
-    # 是否在普通 SMTP 连接后启用 STARTTLS。
-    email_use_tls: bool
-
-    # 是否直接使用 SMTP SSL 连接。
-    email_use_ssl: bool
-
-    # 邮件标题前缀。
-    email_subject_prefix: str
-
-    # SMTP 连接超时时间。
-    email_timeout: int | None
-
 
 def load_dotenv(env_path: Path) -> None:
     """读取 .env 文件并写入环境变量。
@@ -271,16 +238,6 @@ def getenv_bool(name: str, default: bool) -> bool:
     # lower() 转成小写，方便兼容 TRUE、True、true。
     # `in {...}` 判断某个值是否在集合里。
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def getenv_list(name: str) -> tuple[str, ...]:
-    """读取用逗号或分号分隔的环境变量列表。"""
-    value = os.getenv(name, "")
-    return tuple(
-        item.strip()
-        for item in value.replace(";", ",").split(",")
-        if item.strip()
-    )
 
 
 def getenv_timeout(name: str, default: int | None) -> int | None:
@@ -416,17 +373,4 @@ def load_settings() -> Settings:
 
         # 是否保存 prompt 调试文件。
         save_debug_prompts=getenv_bool("SAVE_DEBUG_PROMPTS", True),
-
-        # 日报邮件发送配置。默认关闭，配置完整后把 EMAIL_ENABLED 改成 true 即可启用。
-        email_enabled=getenv_bool("EMAIL_ENABLED", False),
-        email_smtp_host=os.getenv("EMAIL_SMTP_HOST", "").strip(),
-        email_smtp_port=getenv_int("EMAIL_SMTP_PORT", 587),
-        email_smtp_username=os.getenv("EMAIL_SMTP_USERNAME", "").strip(),
-        email_smtp_password=os.getenv("EMAIL_SMTP_PASSWORD", ""),
-        email_from=os.getenv("EMAIL_FROM", "").strip(),
-        email_to=getenv_list("EMAIL_TO"),
-        email_use_tls=getenv_bool("EMAIL_USE_TLS", True),
-        email_use_ssl=getenv_bool("EMAIL_USE_SSL", False),
-        email_subject_prefix=os.getenv("EMAIL_SUBJECT_PREFIX", "AI 热点日报").strip(),
-        email_timeout=getenv_timeout("EMAIL_TIMEOUT", 120),
     )

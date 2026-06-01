@@ -35,10 +35,7 @@ import argparse
 from ai_report_agent.agent import run_daily_report
 
 # load_settings 会读取 .env 和默认配置，得到 Settings 对象。
-from ai_report_agent.config import Settings, load_settings
-
-# send_report_email 负责在日报生成后按 .env 配置发送邮件。
-from ai_report_agent.emailer import send_report_email
+from ai_report_agent.config import load_settings
 
 # run_evaluation 读取 SQLite / trace，生成离线评估报告。
 from ai_report_agent.evaluation import run_evaluation
@@ -65,14 +62,6 @@ from ai_report_agent.skills import (
 )
 
 
-def run_daily_report_and_email(settings: Settings):
-    """生成日报，并在启用邮件配置时发送到邮箱。"""
-
-    report_path = run_daily_report(settings)
-    send_report_email(settings, report_path)
-    return report_path
-
-
 def parse_args() -> argparse.Namespace:
     """解析命令行参数。
 
@@ -89,7 +78,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-once",
         action="store_true",
-        help="Generate one AI daily report immediately and email it if EMAIL_ENABLED=true.",
+        help="Generate one AI daily report immediately.",
     )
 
     # schedule 后面需要跟一个 HH:MM 字符串，例如 --schedule 09:00。
@@ -192,7 +181,7 @@ def execute_skill(skill_name: str, args: argparse.Namespace) -> None:
     settings = load_settings()
 
     if normalized_skill_name == "daily_report":
-        report_path = run_daily_report_and_email(settings)
+        report_path = run_daily_report(settings)
         print(f"Daily report generated: {report_path}")
         return
 
@@ -272,7 +261,7 @@ def main() -> None:
 
     # 立即运行一次完整日报流程。
     if args.run_once:
-        report_path = run_daily_report_and_email(settings)
+        report_path = run_daily_report(settings)
         print(f"Daily report generated: {report_path}")
         return
 
@@ -281,9 +270,9 @@ def main() -> None:
     schedule_time = args.schedule or settings.report_time
     print(f"Agent started. It will generate a daily AI report at {schedule_time}. Press Ctrl+C to stop.")
 
-    # lambda 把带 settings 参数的 run_daily_report_and_email 包装成一个无参数函数，
+    # lambda 把带 settings 参数的 run_daily_report 包装成一个无参数函数，
     # 以满足 scheduler.run_daily 的 Callable[[], Path | None] 类型要求。
-    run_daily(schedule_time, lambda: run_daily_report_and_email(settings))
+    run_daily(schedule_time, lambda: run_daily_report(settings))
 
 
 # 只有直接执行 `python catch_ai.py` 时才运行 main()。

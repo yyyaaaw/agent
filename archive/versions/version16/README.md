@@ -30,7 +30,6 @@
 - 新闻去重、评分和用户偏好过滤。
 - 基于 embedding、实体、动作类型和关键词重叠的事件粗聚类。
 - LLM 事件整合与事件优先的中文日报生成。
-- 每天 09:00 定时生成日报，并可按 `.env` SMTP 配置发送到邮箱。
 - SQLite 本地长期记忆与事件级 RAG。
 - 报告 critic 质量自查与自动修订闸门。
 - JSON trace、run state、SQLite 记录和离线评估报告。
@@ -87,14 +86,6 @@ python -m pip install -r requirements.txt
 python catch_ai.py --run-once
 ```
 
-常驻进程，每天按 `.env` 中的 `REPORT_TIME=09:00` 生成日报，并在 `EMAIL_ENABLED=true` 时发送邮件：
-
-```powershell
-python catch_ai.py
-```
-
-启用邮件发送时，在 `.env` 中配置 `EMAIL_SMTP_HOST`、`EMAIL_SMTP_PORT`、`EMAIL_SMTP_USERNAME`、`EMAIL_SMTP_PASSWORD`、`EMAIL_FROM` 和 `EMAIL_TO`。
-
 评估最近运行：
 
 ```powershell
@@ -133,7 +124,6 @@ python catch_ai.py --recommend-skills "最近日报质量怎么样"
 主要输出：
 
 - `reports/`：最终 Markdown 日报，文件名包含 `run_id`，避免同一天多次运行覆盖。
-- 邮箱：当 `EMAIL_ENABLED=true` 且 SMTP 配置完整时，日报会以正文和 Markdown 附件形式发送到 `EMAIL_TO`。
 - `data/raw/`：原始采集新闻 JSON，文件名包含 `run_id`。
 - `data/runs/`：每次运行的结构化状态。
 - `data/traces/`：每个阶段的耗时、状态和指标。
@@ -192,7 +182,7 @@ agent/
 archive/versions/version01
 archive/versions/version02
 ...
-archive/versions/version16
+archive/versions/version15
 ```
 
 根目录代表当前可运行版本；历史目录用于回看每次能力迭代和设计取舍。

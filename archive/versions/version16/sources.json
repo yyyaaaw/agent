@@ -1,0 +1,434 @@
+[
+  {
+    "name": "OpenAI Blog",
+    "url": "https://openai.com/news/rss.xml",
+    "homepage_url": "https://openai.com/news/",
+    "fallback_urls": [
+      "https://openai.com/blog/rss.xml"
+    ],
+    "category": "产品与模型",
+    "region": "global",
+    "language": "en",
+    "source_type": "company",
+    "priority": 5,
+    "tags": ["official", "model", "product", "agent"],
+    "enabled": true
+  },
+  {
+    "name": "Google DeepMind Blog",
+    "url": "https://deepmind.google/discover/blog/rss.xml",
+    "homepage_url": "https://deepmind.google/discover/blog/",
+    "fallback_urls": [
+      "https://deepmind.google/discover/blog/rss/",
+      "https://deepmind.google/blog/rss.xml"
+    ],
+    "category": "产品与研究",
+    "region": "global",
+    "language": "en",
+    "source_type": "company",
+    "priority": 4,
+    "tags": ["official", "research", "model"],
+    "enabled": true
+  },
+  {
+    "name": "Microsoft AI Blog",
+    "url": "https://blogs.microsoft.com/ai/feed/",
+    "homepage_url": "https://blogs.microsoft.com/ai/",
+    "fallback_urls": [
+      "https://blogs.microsoft.com/feed/"
+    ],
+    "category": "企业应用",
+    "region": "global",
+    "language": "en",
+    "source_type": "company",
+    "priority": 4,
+    "tags": ["official", "enterprise", "copilot"],
+    "enabled": true
+  },
+  {
+    "name": "NVIDIA AI Blog",
+    "url": "https://blogs.nvidia.com/blog/category/deep-learning/feed/",
+    "homepage_url": "https://blogs.nvidia.com/blog/category/deep-learning/",
+    "fallback_urls": [
+      "https://blogs.nvidia.com/feed/"
+    ],
+    "category": "企业应用",
+    "region": "global",
+    "language": "en",
+    "source_type": "company",
+    "priority": 4,
+    "tags": ["official", "infrastructure", "enterprise"],
+    "enabled": true
+  },
+  {
+    "name": "VentureBeat AI",
+    "url": "https://venturebeat.com/category/ai/feed/",
+    "homepage_url": "https://venturebeat.com/category/ai/",
+    "fallback_urls": [
+      "https://venturebeat.com/category/ai/feed",
+      "https://venturebeat.com/feed/"
+    ],
+    "category": "应用与商业",
+    "region": "global",
+    "language": "en",
+    "source_type": "general_news",
+    "priority": 4,
+    "tags": ["media", "startup", "enterprise"],
+    "enabled": true
+  },
+  {
+    "name": "TechCrunch AI",
+    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "homepage_url": "https://techcrunch.com/category/artificial-intelligence/",
+    "fallback_urls": [
+      "https://techcrunch.com/feed/"
+    ],
+    "category": "应用与商业",
+    "region": "global",
+    "language": "en",
+    "source_type": "general_news",
+    "priority": 4,
+    "tags": ["media", "startup", "product"],
+    "enabled": true
+  },
+  {
+    "name": "The Decoder",
+    "url": "https://the-decoder.com/feed/",
+    "homepage_url": "https://the-decoder.com/",
+    "fallback_urls": [],
+    "category": "应用与产品",
+    "region": "global",
+    "language": "en",
+    "source_type": "general_news",
+    "priority": 3,
+    "tags": ["media", "model", "product"],
+    "enabled": true
+  },
+  {
+    "name": "MIT Technology Review AI",
+    "url": "https://www.technologyreview.com/feed/",
+    "homepage_url": "https://www.technologyreview.com/",
+    "fallback_urls": [],
+    "category": "趋势与影响",
+    "region": "global",
+    "language": "en",
+    "source_type": "general_news",
+    "priority": 3,
+    "tags": ["media", "trend", "impact"],
+    "enabled": true
+  },
+  {
+    "name": "Arxiv CS AI",
+    "url": "https://export.arxiv.org/rss/cs.AI",
+    "homepage_url": "https://arxiv.org/list/cs.AI/recent",
+    "fallback_urls": [],
+    "category": "研究论文",
+    "region": "global",
+    "language": "en",
+    "source_type": "research",
+    "priority": 2,
+    "tags": ["paper", "research"],
+    "enabled": true
+  },
+  {
+    "name": "Google AI Updates",
+    "url": "https://blog.google/feed/",
+    "homepage_url": "https://blog.google/technology/ai/",
+    "fallback_urls": [
+      "https://blog.google/rss/"
+    ],
+    "category": "产品与模型",
+    "region": "global",
+    "language": "en",
+    "source_type": "company",
+    "priority": 4,
+    "tags": ["official", "product", "model"],
+    "enabled": true
+  },
+  {
+    "name": "InfoQ AI News",
+    "url": "https://feed.infoq.com/ai/news/",
+    "homepage_url": "https://www.infoq.com/ai/news/",
+    "fallback_urls": [
+      "https://feed.infoq.com/ai-ml-data-eng/"
+    ],
+    "category": "产品与模型",
+    "region": "global",
+    "language": "en",
+    "source_type": "general_tech",
+    "priority": 3,
+    "tags": ["media", "developer", "enterprise"],
+    "enabled": true
+  },
+  {
+    "name": "Hugging Face Blog",
+    "url": "https://huggingface.co/blog/feed.xml",
+    "homepage_url": "https://huggingface.co/blog",
+    "fallback_urls": [],
+    "category": "产品与研究",
+    "region": "global",
+    "language": "en",
+    "source_type": "community",
+    "priority": 3,
+    "tags": ["model", "open-source", "developer"],
+    "enabled": true
+  },
+  {
+    "name": "Google Research Blog",
+    "url": "https://research.google/blog/rss/",
+    "homepage_url": "https://research.google/blog/",
+    "fallback_urls": [
+      "https://research.google/blog/rss.xml",
+      "https://research.google/blog/feed.xml"
+    ],
+    "category": "产品与研究",
+    "region": "global",
+    "language": "en",
+    "source_type": "research",
+    "priority": 2,
+    "tags": ["official", "research"],
+    "enabled": true
+  },
+  {
+    "name": "AWS Machine Learning Blog",
+    "url": "https://aws.amazon.com/blogs/machine-learning/feed/",
+    "homepage_url": "https://aws.amazon.com/blogs/machine-learning/",
+    "fallback_urls": [
+      "https://aws.amazon.com/blogs/aws/category/artificial-intelligence/feed/"
+    ],
+    "category": "企业应用",
+    "region": "global",
+    "language": "en",
+    "source_type": "company",
+    "priority": 3,
+    "tags": ["official", "enterprise", "cloud"],
+    "enabled": true
+  },
+  {
+    "name": "Google Cloud AI Blog",
+    "url": "https://cloud.google.com/blog/products/rss",
+    "homepage_url": "https://cloud.google.com/blog/products/ai-machine-learning",
+    "fallback_urls": [],
+    "category": "企业应用",
+    "region": "global",
+    "language": "en",
+    "source_type": "company",
+    "priority": 3,
+    "tags": ["official", "enterprise", "cloud"],
+    "enabled": true
+  },
+  {
+    "name": "The Verge AI",
+    "url": "https://www.theverge.com/rss/index.xml",
+    "homepage_url": "https://www.theverge.com/ai-artificial-intelligence",
+    "fallback_urls": [],
+    "category": "应用与商业",
+    "region": "global",
+    "language": "en",
+    "source_type": "general_news",
+    "priority": 3,
+    "tags": ["media", "consumer", "product"],
+    "enabled": true
+  },
+  {
+    "name": "Product Hunt",
+    "url": "https://www.producthunt.com/feed",
+    "homepage_url": "https://www.producthunt.com/topics/artificial-intelligence",
+    "fallback_urls": [],
+    "category": "应用与产品",
+    "region": "global",
+    "language": "en",
+    "source_type": "community",
+    "priority": 3,
+    "tags": ["product", "startup", "tool"],
+    "enabled": true
+  },
+  {
+    "name": "WIRED AI",
+    "url": "https://www.wired.com/feed/tag/ai/latest/rss",
+    "homepage_url": "https://www.wired.com/tag/artificial-intelligence/",
+    "fallback_urls": [
+      "https://www.wired.com/feed/rss"
+    ],
+    "category": "趋势与影响",
+    "region": "global",
+    "language": "en",
+    "source_type": "general_news",
+    "priority": 3,
+    "tags": ["media", "trend", "impact"],
+    "enabled": true
+  },
+  {
+    "name": "ScienceDaily AI",
+    "url": "https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml",
+    "homepage_url": "https://www.sciencedaily.com/news/computers_math/artificial_intelligence/",
+    "fallback_urls": [],
+    "category": "趋势与影响",
+    "region": "global",
+    "language": "en",
+    "source_type": "research",
+    "priority": 2,
+    "tags": ["research", "science"],
+    "enabled": true
+  },
+  {
+    "name": "Arxiv CS LG",
+    "url": "https://export.arxiv.org/rss/cs.LG",
+    "homepage_url": "https://arxiv.org/list/cs.LG/recent",
+    "fallback_urls": [],
+    "category": "研究论文",
+    "region": "global",
+    "language": "en",
+    "source_type": "research",
+    "priority": 1,
+    "tags": ["paper", "research"],
+    "enabled": true
+  },
+  {
+    "name": "Arxiv CS CL",
+    "url": "https://export.arxiv.org/rss/cs.CL",
+    "homepage_url": "https://arxiv.org/list/cs.CL/recent",
+    "fallback_urls": [],
+    "category": "研究论文",
+    "region": "global",
+    "language": "en",
+    "source_type": "research",
+    "priority": 1,
+    "tags": ["paper", "research"],
+    "enabled": true
+  },
+  {
+    "name": "机器之心",
+    "url": "https://www.jiqizhixin.com/rss",
+    "homepage_url": "https://www.jiqizhixin.com/",
+    "fallback_urls": [
+      "https://www.jiqizhixin.com/feed",
+      "https://www.jiqizhixin.com/"
+    ],
+    "category": "产品与研究",
+    "region": "china",
+    "language": "zh",
+    "source_type": "general_news",
+    "priority": 5,
+    "tags": ["国内", "媒体", "模型", "研究", "产业"],
+    "enabled": true
+  },
+  {
+    "name": "量子位",
+    "url": "https://www.qbitai.com/feed",
+    "homepage_url": "https://www.qbitai.com/",
+    "fallback_urls": [
+      "https://www.qbitai.com/"
+    ],
+    "category": "应用与产品",
+    "region": "china",
+    "language": "zh",
+    "source_type": "general_news",
+    "priority": 5,
+    "tags": ["国内", "媒体", "产品", "应用", "公司"],
+    "enabled": true
+  },
+  {
+    "name": "InfoQ 中文 AI",
+    "url": "https://www.infoq.cn/rss/",
+    "homepage_url": "https://www.infoq.cn/topic/AI",
+    "fallback_urls": [
+      "https://www.infoq.cn/feed"
+    ],
+    "category": "企业应用",
+    "region": "china",
+    "language": "zh",
+    "source_type": "general_tech",
+    "priority": 4,
+    "tags": ["国内", "开发者", "企业", "工程"],
+    "enabled": true
+  },
+  {
+    "name": "36氪",
+    "url": "https://36kr.com/feed",
+    "homepage_url": "https://www.36kr.com/",
+    "fallback_urls": [
+      "https://36kr.com/rss-center"
+    ],
+    "category": "应用与商业",
+    "region": "china",
+    "language": "zh",
+    "source_type": "general_news",
+    "priority": 4,
+    "tags": ["国内", "商业", "创业", "公司"],
+    "enabled": true
+  },
+  {
+    "name": "雷峰网",
+    "url": "https://www.leiphone.com/feed",
+    "homepage_url": "https://www.leiphone.com/",
+    "fallback_urls": [
+      "https://www.leiphone.com/us/rss"
+    ],
+    "category": "应用与商业",
+    "region": "china",
+    "language": "zh",
+    "source_type": "general_news",
+    "priority": 4,
+    "tags": ["国内", "媒体", "产业", "公司"],
+    "enabled": true
+  },
+  {
+    "name": "智东西",
+    "url": "https://zhidx.com/feed",
+    "homepage_url": "https://zhidx.com/",
+    "fallback_urls": [
+      "https://zhidx.com/"
+    ],
+    "category": "企业应用",
+    "region": "china",
+    "language": "zh",
+    "source_type": "general_news",
+    "priority": 4,
+    "tags": ["国内", "产业", "硬件", "企业"],
+    "enabled": true
+  },
+  {
+    "name": "少数派",
+    "url": "https://sspai.com/feed",
+    "homepage_url": "https://sspai.com/",
+    "fallback_urls": [],
+    "category": "应用与产品",
+    "region": "china",
+    "language": "zh",
+    "source_type": "general_tech",
+    "priority": 3,
+    "tags": ["国内", "工具", "效率", "产品"],
+    "enabled": true
+  },
+  {
+    "name": "虎嗅",
+    "url": "https://www.huxiu.com/rss/0.xml",
+    "homepage_url": "https://www.huxiu.com/",
+    "fallback_urls": [
+      "https://www.huxiu.com/"
+    ],
+    "category": "应用与商业",
+    "region": "china",
+    "language": "zh",
+    "source_type": "general_news",
+    "priority": 3,
+    "tags": ["国内", "商业", "科技", "趋势"],
+    "enabled": true
+  },
+  {
+    "name": "开源中国资讯",
+    "url": "https://www.oschina.net/news/rss",
+    "homepage_url": "https://www.oschina.net/news",
+    "fallback_urls": [
+      "https://www.oschina.net/news"
+    ],
+    "category": "应用与产品",
+    "region": "china",
+    "language": "zh",
+    "source_type": "general_tech",
+    "priority": 3,
+    "tags": ["国内", "开发者", "开源", "工具"],
+    "enabled": true
+  }
+]
